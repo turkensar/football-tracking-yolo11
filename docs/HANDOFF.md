@@ -1,40 +1,44 @@
 # HANDOFF (Geliştirici → İnceleyici)
 
-## Görev: T03 — Video I/O
+## Görev: T04 — Detector
 
 **Değişen/eklenen dosyalar**
-- `src/futbolcv/video_io.py` — OpenCV tabanlı `VideoReader` (metadata özellikleri, `max_frames`/`stride`, iki geçiş için yeniden yinelenebilir iterator, context manager, `FileNotFoundError`) ve `VideoWriter` (context manager, üst klasör oluşturma, `mp4v` codec, şekil/dtype/kapalı yazma koruması) eklendi.
-- `tests/conftest.py` — OpenCV ile 10 karelik sentetik video üreten `synthetic_video_path`, `synthetic_video_meta` ve `synthetic_frame` fixture'ları eklendi.
-- `tests/test_video_io.py` — `VideoReader` ve `VideoWriter` için 20 birim testi (metadata/kare eşleşmesi, `max_frames`, `stride`, çift geçişte tekrar okuma, olmayan/bozuk dosya, şekil/dtype/kapalı yazıcı hataları, iç içe klasör oluşturma) eklendi.
-- `docs/PLAN.md` — T03 durumu `REVIEW` olarak güncellendi.
+- `src/futbolcv/detector.py` — `Detector(cfg)` YOLO11 sarmalayıcısı (`detect(frame) -> tuple[sv.Detections, sv.Detections]`), `resolve_device("auto" -> "0"/"cpu")` ve yalın ağırlık adlarını `models/` altına yönlendiren `resolve_weights_path` eklendi.
+- `tests/test_detector.py` — YOLO'yu mock'layarak modelin tek kez yüklenmesini, sınıf/güven ayrımını (`player_class_ids`, `ball_class_ids`, `conf`, `ball_conf`, `min_player_box_height_px`), boş sonuçları, cihaz ve ağırlık yolu çözümlemesini doğrulayan 5 hızlı birim testi + gerçek `yolo11s.pt` ağırlığıyla `ultralytics/assets/zidane.jpg` üzerinde ≥1 `person` bulan 1 `@pytest.mark.slow` testi eklendi.
+- `docs/PLAN.md` — T04 durumu `REVIEW` olarak güncellendi.
 
 **Çalıştırılan komutlar ve sonuçları**
 ```
 .venv\Scripts\pytest.exe -q
--> .........................................                                [100%]
--> 41 passed in 2.58s
+-> ..............................................                           [100%]
+-> 46 passed, 1 deselected in 12.19s
+
+.venv\Scripts\pytest.exe -m slow -v
+-> tests/test_detector.py::test_detector_real_weights_finds_person PASSED   [100%]
+-> 1 passed, 46 deselected in 22.94s
 
 .venv\Scripts\ruff.exe check .
 -> All checks passed!
 
 .venv\Scripts\ruff.exe format --check .
--> 18 files already formatted
+-> 19 files already formatted
 
-git commit -m "feat: video io reader and writer (T03)"
+git commit -m "feat: yolo11 detector wrapper (T04)"
 -> Commit atıldı (push edilmedi).
 ```
 
 **Kabul kriterleri**
-- [x] `VideoReader(path)`: `(frame_idx, frame)` iterator, `fps`, `width`, `height`, `frame_count` özellikleri, `max_frames` ve `stride` desteği, olmayan dosyada `FileNotFoundError`.
-- [x] `VideoWriter(path, fps, size)`: context manager, üst klasörleri otomatik oluşturur, varsayılan codec `mp4v`.
-- [x] Fixture'da OpenCV ile 10 karelik sentetik video yazılıp okundu; kare sayısı (`10`), boyut (`320x240`) ve FPS (`25.0`) eşleşmesi testle doğrulandı (`VideoWriter` round-trip testiyle de doğrulandı).
-- [x] `pytest -q`, `ruff check .`, `ruff format --check .` temiz; GPU/internet/ağırlık gerektirmiyor.
-- [x] Görev sonu commit'i (`feat: video io reader and writer (T03)`) atıldı (push edilmedi).
+- [x] `Detector(cfg)` modeli `__init__` içinde yalnızca bir kez yükler; `detect(frame)` `(players, ball_candidates)` olarak `tuple[sv.Detections, sv.Detections]` döner; sınıf filtreleri config'den alınır.
+- [x] `device="auto"` → CUDA varsa `"0"`, yoksa `"cpu"` (monkeypatch ile her iki dal test edildi).
+- [x] Yalın `weights` adı (`yolo11s.pt`) `models/yolo11s.pt` olarak çözümlenir; proje kökünde `.pt` oluşmadığı ve `models/yolo11s.pt`'nin `git status`'ta görünmediği doğrulandı.
+- [x] Mock'lu birim testleri sınıf/güven ayrımını doğrular; `@pytest.mark.slow` testi gerçek `yolo11s.pt` ağırlığıyla `zidane.jpg` üzerinde ≥1 `person` tespit etti ve varsayılan `pytest -q` çalıştırmasında atlandı.
+- [x] `ruff check .`, `ruff format --check .` ve `pytest -q` temiz.
+- [x] Görev sonu commit'i (`feat: yolo11 detector wrapper (T04)`) atıldı (push edilmedi).
 
 **Sapmalar** (plandan farklı yapılanlar + gerekçe)
-- `VideoReader` metadata'yı `__init__` içinde okuyup `VideoCapture`'ı hemen serbest bırakır; her `__iter__` çağrısında kendi `VideoCapture`'ını açıp `finally` bloğunda kapatır. Bu sayede Windows'ta dosya kilidi sızıntısı önlenir ve T10'daki iki geçişli (two-pass) pipeline'da aynı `VideoReader` nesnesi güvenle iki kez gezilebilir.
-- `VideoReader` atlanan karelerde (`stride > 1`) tam decode yerine `cap.grab()` kullanır ve `frame_idx` olarak kaynak videodaki orijinal kare indeksini (`0, stride, 2*stride, ...`) üretir; `max_frames` döndürülen kare sayısını sınırlar.
-- `VideoWriter.write()` OpenCV'nin sessizce kare düşürmesini engellemek için kare boyutu (`(height, width, 3)`) ve `uint8` doğrulaması yapar.
+- `detect()` içinde YOLO'ya `conf=min(cfg.conf, cfg.ball_conf)` ve `classes=sorted(set(player_class_ids) | set(ball_class_ids))` geçilip sonuçlar sonrasında oyuncular için `cfg.conf` (+ opsiyonel `min_player_box_height_px`), top adayları için `cfg.ball_conf` ile ayrıştırıldı (R1 düşük top eşiği ve R4 kutu boyutu alt sınırı tek inference geçişinde desteklenir).
+- `Detector.__init__` test edilebilirlik için opsiyonel `models_dir: Path = Path("models")` parametresi alır.
+- `@pytest.mark.slow` testi repo içine telifli görsel eklememek için (R10) `ultralytics` paketiyle hazır gelen `assets/zidane.jpg` görselini kullanır.
 
 **Açık sorular / riskler**
-- Yok.
+- **Windows sistem sertifikası (TLS):** Bu Windows ortamında `requests`/`certifi` GitHub release indirmesinde `SSLCertVerificationError` verdi (T01'deki `uv --system-certs` ile aynı kök neden). `yolo11s.pt`, Windows'un yerel TLS deposunu kullanan `curl.exe -fL` ile `models/yolo11s.pt` altına indirilerek `@pytest.mark.slow` doğrulandı. T12 README'de Windows/kurumsal ağ kullanıcıları için `models/yolo11s.pt` manuel indirme notu düşülebilir.

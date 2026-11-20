@@ -118,8 +118,8 @@ Durumlar: `TODO` · `DOING` · `REVIEW` (handoff yazıldı) · `FIX` (düzeltme 
 |---|---|---|
 | T01 | İskelet + ortam | DONE |
 | T02 | Config | DONE |
-| T03 | Video I/O | REVIEW |
-| T04 | Detector | TODO |
+| T03 | Video I/O | DONE |
+| T04 | Detector | REVIEW |
 | T05 | Oyuncu takibi | TODO |
 | T06 | Top takibi + enterpolasyon | TODO |
 | T07 | Takım sınıflandırma | TODO |
@@ -186,6 +186,7 @@ Her görevde genel kabul kriterleri (aşağıda tekrar yazılmaz):
 
 ### T10 — Pipeline + CLI
 - `run(input, output_dir, cfg, max_frames=None) -> Path` — §2'deki iki geçiş; ilerleme çubuğu (`tqdm`).
+- Etkin fps = `reader.fps / stride`. Bu değer hem çıktı videosunun fps'i hem de ByteTrack'in `frame_rate` değeri olur. `reader.fps` 0 ya da geçersizse uyarı verilir ve 25 kullanılır. `frame_count` yalnızca ilerleme çubuğu için kullanılır, güvenilir kabul edilmez.
 - CLI: `python -m futbolcv --input data\mac.mp4 --output outputs\ --config configs\default.yaml [--max-frames 300] [--device cpu]`.
 - **Kabul:** Detector mock'lu test, 10 karelik sentetik videoda çıktı mp4 + csv + json üretir. `--help` çalışır. Hatalı yol → anlaşılır hata mesajı, traceback değil.
 
