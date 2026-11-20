@@ -36,6 +36,7 @@ annotate:
   team_1_color_bgr: [0, 60, 230]
   unknown_color_bgr: [160, 160, 160]
   ball_color_bgr: [0, 230, 255]
+  use_jersey_colors: true
   show_hud: true
   font_scale: 0.5
   thickness: 2

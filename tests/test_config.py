@@ -155,6 +155,7 @@ def test_tracker_frame_rate_override(tmp_path: Path) -> None:
         "ball:\n  max_gap_frames: -1\n",
         "team:\n  color_space: rgb\n",
         "annotate:\n  unknown_color_bgr: [100, 100]\n",
+        "annotate:\n  use_jersey_colors: 'yes'\n",
         "annotate:\n  show_hud: 'yes'\n",
         "output:\n  stride: 0\n",
         "output:\n  codec: mp4\n",

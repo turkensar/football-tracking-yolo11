@@ -122,8 +122,8 @@ Durumlar: `TODO` · `DOING` · `REVIEW` (handoff yazıldı) · `FIX` (düzeltme 
 | T04 | Detector | DONE |
 | T05 | Oyuncu takibi | DONE |
 | T06 | Top takibi + enterpolasyon | DONE |
-| T07 | Takım sınıflandırma | REVIEW |
-| T08 | Annotator | TODO |
+| T07 | Takım sınıflandırma | DONE |
+| T08 | Annotator | REVIEW |
 | T09 | Exporter | TODO |
 | T10 | Pipeline + CLI | TODO |
 | T11 | Uçtan uca deneme + ayar | TODO |
@@ -188,12 +188,15 @@ Her görevde genel kabul kriterleri (aşağıda tekrar yazılmaz):
 - `run(input, output_dir, cfg, max_frames=None) -> Path` — §2'deki iki geçiş; ilerleme çubuğu (`tqdm`).
 - Etkin fps = `reader.fps / stride`. Bu değer hem çıktı videosunun fps'i hem de ByteTrack'in `frame_rate` değeri olur. `reader.fps` 0 ya da geçersizse uyarı verilir ve 25 kullanılır. `frame_count` yalnızca ilerleme çubuğu için kullanılır, güvenilir kabul edilmez.
 - Top: `BallTracker.update(..., frame_idx=<kaynak kare no>)` çağrılır. `interpolate` liste indeksiyle çalıştığı için ona `max(1, max_gap_frames // stride)` verilir.
-- Sahne kesmesi (R3) algılandığında `PlayerTracker.reset()` ve `BallTracker.reset()` birlikte çağrılır. Enterpolasyon da kesme noktasını aşmamalı: listeyi kesme noktalarında parçalara bölüp her parçayı ayrı enterpole et.
+- Sahne kesmesi (R3) algılandığında `PlayerTracker.reset()` ve `BallTracker.reset()` birlikte çağrılır. Enterpolasyon da kesme noktasını aşmamalı: listeyi kesme noktalarında parçalara bölüp her parçayı ayrı enterpole et. Sahne kesmesinde `TeamClassifier.reset_history()` de çağrılır.
+- Takım ısınması: Ana geçişten önce ilk `n_init_frames` kare için kısa bir ön geçiş yapılır (tespit + `add_init_frame`), ardından `fit()` çağrılır. Ana geçiş 0. kareden başlar. Böylece ilk karelerdeki oyuncular `-1` (gri) görünmez.
 - CLI: `python -m futbolcv --input data\mac.mp4 --output outputs\ --config configs\default.yaml [--max-frames 300] [--device cpu]`.
 - **Kabul:** Detector mock'lu test, 10 karelik sentetik videoda çıktı mp4 + csv + json üretir. `--help` çalışır. Hatalı yol → anlaşılır hata mesajı, traceback değil.
 
 ### T11 — Uçtan uca deneme + ayar
-- Gerçek bir klip (30–60 sn, yayın kamerası) üzerinde çalıştır. `conf`, `imgsz` (top için 1280 dene), ByteTrack eşikleri ayarla.
+- Gerçek bir klip (30–60 sn, yayın kamerası) üzerinde çalıştır. `conf`, `imgsz` (top için 1280 dene), ByteTrack eşikleri ayarla (`lost_track_buffer` için 60–90 dene).
+- Takım: Gölge/güneş geçişinde aynı takım L (parlaklık) kanalı yüzünden iki kümeye bölünüyor ya da `-1` oluyorsa `team.lightness_weight` eklenir (Lab'de L kanalını örn. 0.3 ile çarp). `outlier_distance_threshold` gerçek görüntüye göre kalibre edilir.
+- Top: Sabit bir yanlış pozitife kilitlenme görülürse `select()` mesafe ve güveni birlikte puanlayacak şekilde güncellenir.
 - **Kabul:** HANDOFF'ta: kullanılan klip kaynağı + lisansı, donanım, FPS, `summary.json` içeriği, gözlenen sorunlar (ID değişimi, top kaybı) ve 3 örnek kare `docs/assets/` içinde.
 
 ### T12 — README + demo GIF

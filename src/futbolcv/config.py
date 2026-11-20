@@ -207,6 +207,7 @@ class AnnotateConfig:
     team_1_color_bgr: tuple[int, int, int] = (0, 60, 230)
     unknown_color_bgr: tuple[int, int, int] = (160, 160, 160)
     ball_color_bgr: tuple[int, int, int] = (0, 230, 255)
+    use_jersey_colors: bool = True
     show_hud: bool = True
     font_scale: float = 0.5
     thickness: int = 2
@@ -214,6 +215,10 @@ class AnnotateConfig:
     def __post_init__(self) -> None:
         for attr in _BGR_FIELDS:
             setattr(self, attr, _validate_bgr_tuple(f"annotate.{attr}", getattr(self, attr)))
+        if not isinstance(self.use_jersey_colors, bool):
+            raise ValueError(
+                f"'annotate.use_jersey_colors' must be a boolean, got {self.use_jersey_colors!r}"
+            )
         if not isinstance(self.show_hud, bool):
             raise ValueError(f"'annotate.show_hud' must be a boolean, got {self.show_hud!r}")
         self.font_scale = _validate_float(
