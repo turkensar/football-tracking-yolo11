@@ -117,8 +117,8 @@ Durumlar: `TODO` · `DOING` · `REVIEW` (handoff yazıldı) · `FIX` (düzeltme 
 | # | Görev | Durum |
 |---|---|---|
 | T01 | İskelet + ortam | DONE |
-| T02 | Config | REVIEW |
-| T03 | Video I/O | TODO |
+| T02 | Config | DONE |
+| T03 | Video I/O | REVIEW |
 | T04 | Detector | TODO |
 | T05 | Oyuncu takibi | TODO |
 | T06 | Top takibi + enterpolasyon | TODO |
@@ -155,14 +155,16 @@ Her görevde genel kabul kriterleri (aşağıda tekrar yazılmaz):
 ### T04 — Detector
 - `Detector(cfg)`: modeli bir kez yükler; `detect(frame) -> tuple[sv.Detections, sv.Detections]` (oyuncular, top adayları). Sınıf filtreleri config'den.
 - `device="auto"` → CUDA varsa `0`, yoksa `cpu`.
+- `weights` yalın bir dosya adıysa (`yolo11s.pt`) `models/` altında aranır, yoksa ultralytics oraya indirir. Böylece proje kökünde `.pt` dosyası birikmez.
 - **Kabul:** Birim testi YOLO'yu **mock**layarak sınıf ayrımını doğrular. `@slow` testi gerçek ağırlıkla bir görüntüde ≥1 `person` bulur.
 
 ### T05 — Oyuncu takibi
-- `PlayerTracker(cfg)`: `update(dets) -> sv.Detections` (tracker_id dolu), `reset()`.
+- `PlayerTracker(cfg, fps)`: `update(dets) -> sv.Detections` (tracker_id dolu), `reset()`.
+- ByteTrack'in `frame_rate` değeri **videodan** gelir (`fps / stride`); config'teki `tracker.frame_rate` `float | None = None` olur ve yalnızca elle zorlamak için kullanılır. (Yayınlar çoğunlukla 25/50 fps'tir; sabit 30 değeri `lost_track_buffer` süresini kaydırır.)
 - **Kabul:** Test: sağa doğru 5 px/kare kayan 2 sentetik kutu, 20 kare boyunca **aynı** 2 tracker_id'yi korur; `reset()` sonrası ID'ler yeniden başlar.
 
 ### T06 — Top takibi + enterpolasyon
-- `BallTracker.select(candidates, prev_xyxy) -> BallState`: birden çok aday varsa önceki konuma en yakını, yoksa en yüksek güvenli olanı seçer; mantıksız sıçrama (`ball.max_jump_px`) reddedilir.
+- `BallTracker.select(candidates, prev_xyxy) -> BallState`: birden çok aday varsa önceki konuma en yakını, yoksa en yüksek güvenli olanı seçer; mantıksız sıçrama reddedilir. Eşik **kare başına** tanımlanır (`max_jump_px × son görülmeden beri geçen kare`), aksi halde birkaç kare kaybolan top hiç geri yakalanamaz.
 - `interpolate(states, max_gap) -> list[BallState]`: ≤ `max_gap` karelik boşlukları doğrusal doldurur (`interpolated=True`); daha uzun boşluklar `None` kalır.
 - **Kabul:** Testler: (a) 3 karelik boşluk doğru koordinatlarla doldurulur, (b) `max_gap+1` boşluk doldurulmaz, (c) baştaki/sondaki boşluk doldurulmaz, (d) 2 adaydan öncekine yakın olan seçilir.
 

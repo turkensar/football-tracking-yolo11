@@ -1,39 +1,40 @@
 # HANDOFF (Geliştirici → İnceleyici)
 
-## Görev: T02 — Config
+## Görev: T03 — Video I/O
 
 **Değişen/eklenen dosyalar**
-- `configs/default.yaml` — 6 bölüm (`detector`, `tracker`, `ball`, `team`, `annotate`, `output`) için varsayılan YAML ayarları eklendi.
-- `src/futbolcv/config.py` — `DetectorConfig`, `TrackerConfig`, `BallConfig`, `TeamConfig`, `AnnotateConfig`, `OutputConfig`, `AppConfig` iç içe dataclass'ları, tip/aralık doğrulamaları ve `load_config(path) -> AppConfig` fonksiyonu yazıldı.
-- `tests/test_config.py` — varsayılan dosya yükleme, eksik anahtar/boş YAML varsayılan dönüşü, bilinmeyen bölüm/anahtar `ValueError`, dosya yokluğu, hatalı tip/aralık doğrulama testleri (20 test) eklendi.
-- `docs/PLAN.md` — T02 durumu `REVIEW` olarak güncellendi.
+- `src/futbolcv/video_io.py` — OpenCV tabanlı `VideoReader` (metadata özellikleri, `max_frames`/`stride`, iki geçiş için yeniden yinelenebilir iterator, context manager, `FileNotFoundError`) ve `VideoWriter` (context manager, üst klasör oluşturma, `mp4v` codec, şekil/dtype/kapalı yazma koruması) eklendi.
+- `tests/conftest.py` — OpenCV ile 10 karelik sentetik video üreten `synthetic_video_path`, `synthetic_video_meta` ve `synthetic_frame` fixture'ları eklendi.
+- `tests/test_video_io.py` — `VideoReader` ve `VideoWriter` için 20 birim testi (metadata/kare eşleşmesi, `max_frames`, `stride`, çift geçişte tekrar okuma, olmayan/bozuk dosya, şekil/dtype/kapalı yazıcı hataları, iç içe klasör oluşturma) eklendi.
+- `docs/PLAN.md` — T03 durumu `REVIEW` olarak güncellendi.
 
 **Çalıştırılan komutlar ve sonuçları**
 ```
-.venv\Scripts\python.exe -m pytest -q
--> .....................                                                    [100%]
--> 21 passed in 1.28s
+.venv\Scripts\pytest.exe -q
+-> .........................................                                [100%]
+-> 41 passed in 2.58s
 
 .venv\Scripts\ruff.exe check .
 -> All checks passed!
 
 .venv\Scripts\ruff.exe format --check .
--> 17 files already formatted
+-> 18 files already formatted
 
-git commit -m "feat: config loader (T02)"
+git commit -m "feat: video io reader and writer (T03)"
 -> Commit atıldı (push edilmedi).
 ```
 
 **Kabul kriterleri**
-- [x] `configs/default.yaml` + `src/futbolcv/config.py` içinde 6 iç içe dataclass (`detector`, `tracker`, `ball`, `team`, `annotate`, `output`) ve `load_config(path) -> AppConfig` tanımlandı.
-- [x] Asgari alanlar (`detector.weights`, `detector.conf`, `detector.imgsz`, `detector.device="auto"`, `detector.player_class_ids=[0]`, `detector.ball_class_ids=[32]`, `ball.max_gap_frames=15`, `team.n_init_frames=30`) mevcut ve varsayılan YAML ile dataclass varsayılanlarının birebir eşleştiği testle doğrulandı (`assert cfg == AppConfig()`).
-- [x] Varsayılan dosya yükleme, bilinmeyen bölüm/anahtar için açıklayıcı `ValueError`, eksik anahtar/bölüm için varsayılan değer dönüşü birim testleriyle doğrulandı.
-- [x] `ruff check .`, `ruff format --check .` ve `pytest -q` (GPU/internet/ağırlık gerektirmeden) temiz.
-- [x] Görev sonu commit'i (`feat: config loader (T02)`) atıldı (push edilmedi).
+- [x] `VideoReader(path)`: `(frame_idx, frame)` iterator, `fps`, `width`, `height`, `frame_count` özellikleri, `max_frames` ve `stride` desteği, olmayan dosyada `FileNotFoundError`.
+- [x] `VideoWriter(path, fps, size)`: context manager, üst klasörleri otomatik oluşturur, varsayılan codec `mp4v`.
+- [x] Fixture'da OpenCV ile 10 karelik sentetik video yazılıp okundu; kare sayısı (`10`), boyut (`320x240`) ve FPS (`25.0`) eşleşmesi testle doğrulandı (`VideoWriter` round-trip testiyle de doğrulandı).
+- [x] `pytest -q`, `ruff check .`, `ruff format --check .` temiz; GPU/internet/ağırlık gerektirmiyor.
+- [x] Görev sonu commit'i (`feat: video io reader and writer (T03)`) atıldı (push edilmedi).
 
 **Sapmalar** (plandan farklı yapılanlar + gerekçe)
-- `configs/default.yaml` ve dataclass'lara sonraki görevlerde (T03–T11) sihirli sayı kalmaması için ek makul alanlar eklendi: `detector.ball_conf` (R1), `detector.min_player_box_height_px` (R4, varsayılan `0`), `tracker.*` (`sv.ByteTrack.__init__` parametreleriyle birebir eşleşen alanlar), `ball.max_jump_px` (T06), `team.{color_space,vote_window,outlier_distance_threshold,jersey_top_ratio,jersey_center_crop_ratio,random_state}` (T07), `annotate.*` (T08 BGR renkleri + HUD), `output.*` (T03/T09 dosya adları, `codec`, `stride`).
-- YAML'da `device: 0` gibi sayısal GPU indeksi yazıldığında hata vermemesi için `int` → `str` dönüşümü eklendi (`bool` hariç).
+- `VideoReader` metadata'yı `__init__` içinde okuyup `VideoCapture`'ı hemen serbest bırakır; her `__iter__` çağrısında kendi `VideoCapture`'ını açıp `finally` bloğunda kapatır. Bu sayede Windows'ta dosya kilidi sızıntısı önlenir ve T10'daki iki geçişli (two-pass) pipeline'da aynı `VideoReader` nesnesi güvenle iki kez gezilebilir.
+- `VideoReader` atlanan karelerde (`stride > 1`) tam decode yerine `cap.grab()` kullanır ve `frame_idx` olarak kaynak videodaki orijinal kare indeksini (`0, stride, 2*stride, ...`) üretir; `max_frames` döndürülen kare sayısını sınırlar.
+- `VideoWriter.write()` OpenCV'nin sessizce kare düşürmesini engellemek için kare boyutu (`(height, width, 3)`) ve `uint8` doğrulaması yapar.
 
 **Açık sorular / riskler**
-- `detector.imgsz` varsayılanı CPU hızını koruyarak `640` bırakıldı (R1/T11'de top tespiti için `1280` denenmesi planlandığından). Varsayılanın baştan `1280` olmasını isterseniz tek satırla güncelleyebiliriz.
+- Yok.
