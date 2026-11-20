@@ -1,0 +1,10 @@
+# Runtime dependencies (pinned for reproducibility).
+# PyTorch (torch/torchvision) is intentionally omitted here; ultralytics pulls
+# CPU torch automatically, and CUDA GPU installation is documented separately.
+numpy==2.4.6
+opencv-python==5.1.0.95
+pyyaml==6.0.3
+scikit-learn==1.9.1
+supervision==0.30.9
+tqdm==4.70.1
+ultralytics==8.4.216
