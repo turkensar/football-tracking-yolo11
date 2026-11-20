@@ -40,6 +40,7 @@ def test_load_default_config() -> None:
     assert cfg.detector.ball_class_ids == [32]
     assert cfg.ball.max_gap_frames == 15
     assert cfg.team.n_init_frames == 30
+    assert cfg.tracker.frame_rate is None
 
     # BGR colors are normalized to 3-int tuples
     assert cfg.annotate.unknown_color_bgr == (160, 160, 160)
@@ -132,6 +133,15 @@ def test_device_int_coerced_to_str(tmp_path: Path) -> None:
     assert cfg.detector.device == "0"
 
 
+def test_tracker_frame_rate_override(tmp_path: Path) -> None:
+    """Explicit tracker.frame_rate overrides the default None."""
+    cfg_file = tmp_path / "fps_override.yaml"
+    cfg_file.write_text("tracker:\n  frame_rate: 50.0\n", encoding="utf-8")
+
+    cfg = load_config(cfg_file)
+    assert cfg.tracker.frame_rate == pytest.approx(50.0)
+
+
 @pytest.mark.parametrize(
     "yaml_text",
     [
@@ -140,6 +150,8 @@ def test_device_int_coerced_to_str(tmp_path: Path) -> None:
         "detector:\n  conf: high\n",
         "detector:\n  imgsz: 0\n",
         "detector:\n  player_class_ids: [true]\n",
+        "tracker:\n  frame_rate: 0\n",
+        "tracker:\n  frame_rate: true\n",
         "ball:\n  max_gap_frames: -1\n",
         "team:\n  color_space: rgb\n",
         "annotate:\n  unknown_color_bgr: [100, 100]\n",

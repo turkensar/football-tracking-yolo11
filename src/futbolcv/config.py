@@ -115,7 +115,7 @@ class TrackerConfig:
     track_activation_threshold: float = 0.25
     lost_track_buffer: int = 30
     minimum_matching_threshold: float = 0.8
-    frame_rate: float = 30.0
+    frame_rate: float | None = None
     minimum_consecutive_frames: int = 1
 
     def __post_init__(self) -> None:
@@ -134,9 +134,10 @@ class TrackerConfig:
         self.lost_track_buffer = _validate_int(
             "tracker.lost_track_buffer", self.lost_track_buffer, min_value=0
         )
-        self.frame_rate = _validate_float(
-            "tracker.frame_rate", self.frame_rate, min_value=0.0, strict_min=True
-        )
+        if self.frame_rate is not None:
+            self.frame_rate = _validate_float(
+                "tracker.frame_rate", self.frame_rate, min_value=0.0, strict_min=True
+            )
         self.minimum_consecutive_frames = _validate_int(
             "tracker.minimum_consecutive_frames", self.minimum_consecutive_frames, min_value=1
         )

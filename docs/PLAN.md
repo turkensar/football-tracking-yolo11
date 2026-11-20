@@ -119,8 +119,8 @@ Durumlar: `TODO` · `DOING` · `REVIEW` (handoff yazıldı) · `FIX` (düzeltme 
 | T01 | İskelet + ortam | DONE |
 | T02 | Config | DONE |
 | T03 | Video I/O | DONE |
-| T04 | Detector | REVIEW |
-| T05 | Oyuncu takibi | TODO |
+| T04 | Detector | DONE |
+| T05 | Oyuncu takibi | REVIEW |
 | T06 | Top takibi + enterpolasyon | TODO |
 | T07 | Takım sınıflandırma | TODO |
 | T08 | Annotator | TODO |
@@ -195,7 +195,7 @@ Her görevde genel kabul kriterleri (aşağıda tekrar yazılmaz):
 - **Kabul:** HANDOFF'ta: kullanılan klip kaynağı + lisansı, donanım, FPS, `summary.json` içeriği, gözlenen sorunlar (ID değişimi, top kaybı) ve 3 örnek kare `docs/assets/` içinde.
 
 ### T12 — README + demo GIF
-- README: tek cümlelik özet, demo GIF, özellikler, mimari şeması, Windows kurulum (venv, opsiyonel CUDA torch), kullanım, çıktı formatı, sonuçlar/kısıtlar, sonraki adımlar, lisans/atıflar.
+- README: tek cümlelik özet, demo GIF, özellikler, mimari şeması, Windows kurulum (venv, opsiyonel CUDA torch), kullanım, çıktı formatı, sonuçlar/kısıtlar, sonraki adımlar, lisans/atıflar. Komutların repo kökünden çalıştırılması gerektiği (`models/` CWD'ye göre çözülüyor) ve TLS/sertifika hatasında `models/yolo11s.pt` dosyasının elle nasıl indirileceği (`curl.exe -fL ...`) notu.
 - `scripts/make_demo_gif.py`: çıktı videodan ≤10 MB GIF.
 - **Kabul:** README'deki komutlar temiz klonda birebir çalışır; repoda ağırlık/video yok (`git status` temiz, büyük dosya yok).
 
