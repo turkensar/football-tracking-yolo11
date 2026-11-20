@@ -1,1 +1,48 @@
-# Default configuration for futbol-cv (populated in T02).
+# Default configuration for futbol-cv.
+# All tunable parameters live here; no magic numbers in source code.
+
+detector:
+  weights: "yolo11s.pt"
+  conf: 0.25
+  ball_conf: 0.15
+  imgsz: 640
+  device: "auto"
+  player_class_ids: [0]
+  ball_class_ids: [32]
+  min_player_box_height_px: 0
+
+tracker:
+  track_activation_threshold: 0.25
+  lost_track_buffer: 30
+  minimum_matching_threshold: 0.8
+  frame_rate: 30.0
+  minimum_consecutive_frames: 1
+
+ball:
+  max_gap_frames: 15
+  max_jump_px: 150.0
+
+team:
+  n_init_frames: 30
+  color_space: "lab"
+  vote_window: 15
+  outlier_distance_threshold: 45.0
+  jersey_top_ratio: 0.5
+  jersey_center_crop_ratio: 0.5
+  random_state: 42
+
+annotate:
+  team_0_color_bgr: [255, 100, 0]
+  team_1_color_bgr: [0, 60, 230]
+  unknown_color_bgr: [160, 160, 160]
+  ball_color_bgr: [0, 230, 255]
+  show_hud: true
+  font_scale: 0.5
+  thickness: 2
+
+output:
+  video_filename: "annotated.mp4"
+  tracks_filename: "tracks.csv"
+  summary_filename: "summary.json"
+  codec: "mp4v"
+  stride: 1

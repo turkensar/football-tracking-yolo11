@@ -116,8 +116,8 @@ Durumlar: `TODO` · `DOING` · `REVIEW` (handoff yazıldı) · `FIX` (düzeltme 
 
 | # | Görev | Durum |
 |---|---|---|
-| T01 | İskelet + ortam | REVIEW |
-| T02 | Config | TODO |
+| T01 | İskelet + ortam | DONE |
+| T02 | Config | REVIEW |
 | T03 | Video I/O | TODO |
 | T04 | Detector | TODO |
 | T05 | Oyuncu takibi | TODO |
