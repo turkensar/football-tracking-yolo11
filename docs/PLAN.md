@@ -120,8 +120,8 @@ Durumlar: `TODO` · `DOING` · `REVIEW` (handoff yazıldı) · `FIX` (düzeltme 
 | T02 | Config | DONE |
 | T03 | Video I/O | DONE |
 | T04 | Detector | DONE |
-| T05 | Oyuncu takibi | REVIEW |
-| T06 | Top takibi + enterpolasyon | TODO |
+| T05 | Oyuncu takibi | DONE |
+| T06 | Top takibi + enterpolasyon | REVIEW |
 | T07 | Takım sınıflandırma | TODO |
 | T08 | Annotator | TODO |
 | T09 | Exporter | TODO |

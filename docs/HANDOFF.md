@@ -1,44 +1,39 @@
 # HANDOFF (Geliştirici → İnceleyici)
 
-## Görev: T05 — Oyuncu takibi
+## Görev: T06 — Top takibi + enterpolasyon
 
 **Değişen/eklenen dosyalar**
-- `configs/default.yaml` — `tracker.frame_rate` değeri `null` olarak güncellendi.
-- `src/futbolcv/config.py` — `TrackerConfig.frame_rate` tipi `float | None = None` yapıldı ve yalnızca `None` değilken pozitif/sonlu sayı doğrulaması uygulandı.
-- `src/futbolcv/tracker.py` — `PlayerTracker(cfg, fps)` (`update(dets) -> sv.Detections`, `reset()`) yazıldı; `supervision==0.30.x` sabitleme yorumu ve yalnızca `sv.ByteTrack(...)` kurulumuna daraltılmış `warnings.catch_warnings()` eklendi.
-- `tests/test_config.py` — `tracker.frame_rate` varsayılan `None`, geçerli override (`50.0`) ve geçersiz değer (`0`, `true`) testleri eklendi.
-- `tests/test_tracker.py` — 20 karelik 5 px/kare kayan 2 kutu ID sürekliliği, `reset()` sonrası ID sıfırlama, `fps` vs `cfg.frame_rate` override, boş tespit (`sv.Detections.empty()`), yerel `FutureWarning` susturma ve geçersiz `fps` testleri (10 test) eklendi.
-- `docs/PLAN.md` — T05 durumu `REVIEW` olarak güncellendi.
+- `src/futbolcv/types.py` — PLAN §2 veri sözleşmesine uygun `BallState(xyxy, conf, interpolated)` ve `FrameResult(frame_idx, players, ball)` dataclass'ları eklendi.
+- `src/futbolcv/ball.py` — `BallTracker(cfg)` (`select(candidates, prev_xyxy, *, frames_since_last=1)`, durumlu `update(candidates, *, frame_idx=None)`, `reset()`) ve doğrusal boşluk doldurma fonksiyonu `interpolate(states, max_gap) -> list[BallState]` eklendi.
+- `tests/test_ball.py` — (a) 3 karelik boşluk doğrusal koordinat kontrolü, (b) `max_gap` vs `max_gap+1` sınır kontrolü, (c) baştaki/sondaki boşlukların doldurulmaması, (d) 2 adaydan öncekine yakın olanın seçilmesi, önceki yokken en yüksek güven seçimi, kare başına sıçrama eşiği (`max_jump_px * frames_since_last`), durumlu `update`/`reset` ve `FrameResult` sözleşme testleri (10 test) eklendi.
+- `docs/PLAN.md` — T06 durumu `REVIEW` olarak güncellendi.
 
 **Çalıştırılan komutlar ve sonuçları**
 ```
 .venv\Scripts\pytest.exe -q
--> ...........................................................              [100%]
--> 59 passed, 1 deselected in 24.43s
-
-.venv\Scripts\pytest.exe -W error tests/test_tracker.py -v
--> 10 passed in 4.93s
+-> .....................................................................    [100%]
+-> 69 passed, 1 deselected in 14.31s
 
 .venv\Scripts\ruff.exe check .
 -> All checks passed!
 
 .venv\Scripts\ruff.exe format --check .
--> 20 files already formatted
+-> 21 files already formatted
 
-git commit -m "feat: bytetrack player tracker (T05)"
+git commit -m "feat: ball tracker and interpolation (T06)"
 -> Commit atıldı (push edilmedi).
 ```
 
 **Kabul kriterleri**
-- [x] `PlayerTracker(cfg, fps)`: `update(dets) -> sv.Detections` (`tracker_id` dolu) ve `reset()` çalışıyor.
-- [x] `tracker.frame_rate: float | None = None` (`configs/default.yaml`'da `null`); `None` ise `fps` parametresi, dolu ise config override'ı `sv.ByteTrack(..., frame_rate=...)` içine aktarılıyor.
-- [x] `FutureWarning` yalnızca `sv.ByteTrack` oluşturma çağrısında `warnings.catch_warnings()` ile susturuldu (`pytest -W error` ve birim testiyle global filtreye dokunulmadığı doğrulandı); dosya başında 0.30.x sabitleme yorumu mevcut.
-- [x] Sağa 5 px/kare kayan 2 sentetik kutu 20 kare boyunca aynı 2 `tracker_id`'yi koruyor; `reset()` sonrası ID'ler baştan başlıyor.
+- [x] `src/futbolcv/types.py` içine §2'deki `BallState` ve `FrameResult` veri sözleşmesi yazıldı.
+- [x] `BallTracker.select(candidates, prev_xyxy)`: birden çok adayda öncekine en yakını seçer (eşit mesafede yüksek güvenle kırar), `prev_xyxy=None` ise en yüksek güvenli adayı seçer; `max_jump_px * frames_since_last` üzerindeki sıçramaları reddeder.
+- [x] `interpolate(states, max_gap)`: ≤ `max_gap` iç boşlukları doğrusal doldurur (`conf=0.0`, `interpolated=True`); `max_gap+1` ve baş/son boşlukları `None` kalır; girdi listesini değiştirmez.
+- [x] Zorunlu 4 senaryo (a, b, c, d) ve ek kenar durumlar birim testleriyle doğrulandı.
 - [x] `pytest -q`, `ruff check .`, `ruff format --check .` temiz; GPU/internet/ağırlık gerektirmiyor.
-- [x] Görev sonu commit'i (`feat: bytetrack player tracker (T05)`) atıldı (push edilmedi).
+- [x] Görev sonu commit'i (`feat: ball tracker and interpolation (T06)`) atıldı (push edilmedi).
 
 **Sapmalar** (plandan farklı yapılanlar + gerekçe)
-- `update()` içinde `sv.Detections.empty()` (`confidence=None`) geldiğinde `sv.ByteTrack.update_with_detections()` `ValueError` fırlattığı için, boş tespitler boş `float32` `confidence` dizisiyle normalize edilip ByteTrack'e iletildi; böylece boş karelerde hata alınmaz ve ByteTrack'in iç `frame_id` sayacı / kayıp iz yaşlandırması doğru ilerler.
+- `BallTracker.select` imzasına varsayılanı `1` olan keyword-only `frames_since_last: int = 1` parametresi eklendi; ayrıca T10 pipeline'ın son görülmeden beri geçen kare sayısını temiz yönetmesi için `select()` üzerine kurulu durumlu `update(candidates, *, frame_idx=None)` ve `reset()` metotları eklendi.
 
 **Açık sorular / riskler**
 - Yok.
