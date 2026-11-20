@@ -137,6 +137,20 @@ def test_pipeline_run_produces_mp4_csv_json_and_warms_up_teams(tmp_path: Path) -
     assert summary["ball"]["interpolated_frames"] == 2
     assert summary["ball"]["visible_ratio"] == pytest.approx(1.0)
 
+    proc = summary["processing"]
+    assert set(proc.keys()) == {
+        "elapsed_sec",
+        "model_load_sec",
+        "pass1_sec",
+        "pass1_fps",
+        "pass2_sec",
+    }
+    assert proc["elapsed_sec"] >= 0.0
+    assert proc["model_load_sec"] >= 0.0
+    assert proc["pass1_sec"] > 0.0
+    assert proc["pass1_fps"] > 0.0
+    assert proc["pass2_sec"] >= 0.0
+
 
 def test_pipeline_stride_scales_effective_fps_and_interpolation_gap(tmp_path: Path) -> None:
     """stride=2 halves effective_fps and scales max_gap_frames // stride."""

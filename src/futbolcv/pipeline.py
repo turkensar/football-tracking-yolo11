@@ -119,10 +119,17 @@ def run(
     source_fps = _resolve_source_fps(reader.fps, src_path.name)
     effective_fps = source_fps / stride
 
+    t_model_start = time.perf_counter()
     det = detector if detector is not None else Detector(cfg.detector)
+    model_load_sec = time.perf_counter() - t_model_start
+
     player_tracker = PlayerTracker(cfg.tracker, fps=effective_fps)
     ball_tracker = BallTracker(cfg.ball)
     team_classifier = TeamClassifier(cfg.team)
+
+    # Pass 1 timer covers warmup inference + tracking/team pass + ball interpolation
+    # (every frame runs detection once, excluding model weight loading).
+    t_pass1_start = time.perf_counter()
 
     # Warmup pre-pass: collect jersey samples from initial frames and fit KMeans before frame 0.
     warmup_limit = cfg.team.n_init_frames
@@ -184,8 +191,10 @@ def run(
         0 if cfg.ball.max_gap_frames == 0 else max(1, cfg.ball.max_gap_frames // stride)
     )
     _interpolate_ball_segments(results, cut_indices, max_gap=effective_max_gap)
+    pass1_sec = time.perf_counter() - t_pass1_start
 
     # Pass 2: re-read video frames, draw annotations, and write output MP4.
+    t_pass2_start = time.perf_counter()
     out_dir.mkdir(parents=True, exist_ok=True)
     video_path = out_dir / cfg.output.video_filename
     annotator = Annotator(
@@ -212,6 +221,7 @@ def run(
                 continue
             annotated = annotator.annotate(frame, res, fps=effective_fps)
             writer.write(annotated)
+    pass2_sec = time.perf_counter() - t_pass2_start
 
     elapsed_sec = time.perf_counter() - t0
     video_info = VideoInfo(
@@ -228,6 +238,11 @@ def run(
         video_info,
         out_dir / cfg.output.summary_filename,
         elapsed_sec=elapsed_sec,
+        timings={
+            "model_load_sec": model_load_sec,
+            "pass1_sec": pass1_sec,
+            "pass2_sec": pass2_sec,
+        },
     )
     return video_path
 

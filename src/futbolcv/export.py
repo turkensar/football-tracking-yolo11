@@ -6,12 +6,27 @@ import csv
 import json
 import math
 from collections import Counter, defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from futbolcv.types import FrameResult
+
+_TIMING_KEYS: tuple[str, ...] = ("model_load_sec", "pass1_sec", "pass2_sec")
+
+
+def _validate_non_negative_sec(name: str, value: Any) -> float:
+    """Validate a non-negative finite duration in seconds."""
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or float(value) < 0.0
+    ):
+        raise ValueError(f"'{name}' must be a non-negative finite number, got {value!r}")
+    return float(value)
+
 
 CSV_COLUMNS: tuple[str, ...] = (
     "frame",
@@ -115,15 +130,21 @@ def build_summary(
     video_info: VideoInfo,
     *,
     elapsed_sec: float,
+    timings: Mapping[str, float] | None = None,
 ) -> dict[str, Any]:
     """Compute structured run statistics from ``FrameResult`` records."""
-    if (
-        isinstance(elapsed_sec, bool)
-        or not isinstance(elapsed_sec, (int, float))
-        or not math.isfinite(elapsed_sec)
-        or float(elapsed_sec) < 0.0
-    ):
-        raise ValueError(f"'elapsed_sec' must be a non-negative finite number, got {elapsed_sec!r}")
+    elapsed = _validate_non_negative_sec("elapsed_sec", elapsed_sec)
+
+    stage_secs: dict[str, float] = dict.fromkeys(_TIMING_KEYS, 0.0)
+    if timings is not None:
+        unknown_keys = set(timings.keys()) - set(_TIMING_KEYS)
+        if unknown_keys:
+            unknown_str = ", ".join(sorted(str(k) for k in unknown_keys))
+            raise ValueError(
+                f"Unknown timing key(s): {unknown_str}. Valid keys: {', '.join(_TIMING_KEYS)}"
+            )
+        for key, value in timings.items():
+            stage_secs[key] = _validate_non_negative_sec(f"timings.{key}", value)
 
     total_frames = len(results)
     team_labels_per_track: dict[int, list[int]] = defaultdict(list)
@@ -162,8 +183,8 @@ def build_summary(
         interpolated_ratio = 0.0
         visible_ratio = 0.0
 
-    elapsed = float(elapsed_sec)
-    processing_fps = round(total_frames / elapsed, 2) if elapsed > 0.0 else 0.0
+    pass1_sec = stage_secs["pass1_sec"]
+    pass1_fps = round(total_frames / pass1_sec, 2) if pass1_sec > 0.0 else 0.0
 
     return {
         "video": {
@@ -187,7 +208,10 @@ def build_summary(
         },
         "processing": {
             "elapsed_sec": round(elapsed, 4),
-            "fps": processing_fps,
+            "model_load_sec": round(stage_secs["model_load_sec"], 4),
+            "pass1_sec": round(pass1_sec, 4),
+            "pass1_fps": pass1_fps,
+            "pass2_sec": round(stage_secs["pass2_sec"], 4),
         },
     }
 
@@ -198,11 +222,12 @@ def export_summary_json(
     path: str | Path,
     *,
     elapsed_sec: float,
+    timings: Mapping[str, float] | None = None,
 ) -> Path:
     """Build and write run statistics to a UTF-8 ``summary.json`` file."""
     out_path = Path(path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    summary = build_summary(results, video_info, elapsed_sec=elapsed_sec)
+    summary = build_summary(results, video_info, elapsed_sec=elapsed_sec, timings=timings)
     out_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     return out_path
 

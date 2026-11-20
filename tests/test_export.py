@@ -141,7 +141,13 @@ def test_export_summary_json_fields_and_values(tmp_path: Path) -> None:
         stride=1,
     )
     json_path = tmp_path / "nested" / "summary.json"
-    returned = export_summary_json(_sample_results(), video_info, json_path, elapsed_sec=2.0)
+    returned = export_summary_json(
+        _sample_results(),
+        video_info,
+        json_path,
+        elapsed_sec=2.0,
+        timings={"model_load_sec": 0.6, "pass1_sec": 0.8, "pass2_sec": 0.5},
+    )
 
     assert returned == json_path
     assert json_path.is_file()
@@ -166,7 +172,13 @@ def test_export_summary_json_fields_and_values(tmp_path: Path) -> None:
         "interpolated_ratio": 0.25,
         "visible_ratio": 0.5,
     }
-    assert data["processing"] == {"elapsed_sec": 2.0, "fps": 2.0}
+    assert data["processing"] == {
+        "elapsed_sec": 2.0,
+        "model_load_sec": 0.6,
+        "pass1_sec": 0.8,
+        "pass1_fps": 5.0,
+        "pass2_sec": 0.5,
+    }
 
 
 def test_summary_counts_each_track_id_under_its_dominant_team() -> None:
@@ -196,11 +208,22 @@ def test_export_empty_results_and_invalid_elapsed(tmp_path: Path) -> None:
     assert summary["total_frames"] == 0
     assert summary["unique_player_ids"] == 0
     assert summary["ball"]["visible_ratio"] == 0.0
-    assert summary["processing"]["fps"] == 0.0
+    assert summary["processing"] == {
+        "elapsed_sec": 0.0,
+        "model_load_sec": 0.0,
+        "pass1_sec": 0.0,
+        "pass1_fps": 0.0,
+        "pass2_sec": 0.0,
+    }
 
     for bad_elapsed in (-1.0, float("nan"), float("inf"), True):
         with pytest.raises(ValueError, match="elapsed_sec"):
             build_summary([], info, elapsed_sec=bad_elapsed)  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="Unknown timing"):
+        build_summary([], info, elapsed_sec=1.0, timings={"bogus_sec": 0.5})
+    with pytest.raises(ValueError, match="pass1_sec"):
+        build_summary([], info, elapsed_sec=1.0, timings={"pass1_sec": -0.1})
 
 
 def test_export_handles_players_missing_optional_fields(tmp_path: Path) -> None:

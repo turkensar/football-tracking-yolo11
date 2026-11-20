@@ -190,3 +190,37 @@ def test_cli_end_to_end_with_mocked_detector(
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     assert summary["total_frames"] == 10
     assert summary["video"]["source"] == synthetic_video_path.name
+
+
+def test_cli_download_connection_error_shows_manual_models_hint(
+    synthetic_video_path: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Download ConnectionError exits 1 with manual models/ hint and no Python traceback."""
+
+    class FailingDetector:
+        def __init__(self, cfg: DetectorConfig) -> None:
+            raise ConnectionError("Download failure for yolo11s.pt. Environment may be offline.")
+
+    monkeypatch.setattr("futbolcv.pipeline.Detector", FailingDetector)
+
+    rc = main(
+        [
+            "--input",
+            str(synthetic_video_path),
+            "--output",
+            str(tmp_path / "out_fail"),
+            "--config",
+            str(DEFAULT_CONFIG),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert rc == 1
+    assert "Traceback" not in captured.err
+    assert "Traceback" not in captured.out
+    assert "models/" in captured.err
+    assert "yolo11s.pt" in captured.err
+    assert "https://github.com/ultralytics/assets/releases/" in captured.err

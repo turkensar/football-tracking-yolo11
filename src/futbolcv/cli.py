@@ -11,6 +11,8 @@ import yaml
 
 from futbolcv.config import load_config
 
+_ULTRALYTICS_ASSETS_BASE_URL = "https://github.com/ultralytics/assets/releases/download/v8.4.0"
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Create the argument parser for ``python -m futbolcv``."""
@@ -62,6 +64,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    weights_label = "yolo11s.pt"
     try:
         if args.max_frames is not None and args.max_frames < 0:
             raise ValueError(f"--max-frames must be >= 0, got {args.max_frames}")
@@ -71,6 +74,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise FileNotFoundError(f"Input video not found: {input_path}")
 
         cfg = load_config(args.config)
+        weights_label = cfg.detector.weights
         if args.device is not None:
             cleaned_device = args.device.strip()
             if not cleaned_device:
@@ -91,7 +95,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     except KeyboardInterrupt:
         print("Interrupted by user.", file=sys.stderr)
         return 130
-    except (FileNotFoundError, ValueError, RuntimeError, yaml.YAMLError) as exc:
+    except ConnectionError:
+        weights_name = Path(weights_label).name
+        url = f"{_ULTRALYTICS_ASSETS_BASE_URL}/{weights_name}"
+        print(
+            f"Error: failed to download model weights ({weights_label}). "
+            f"Download manually and place under models/: {url}",
+            file=sys.stderr,
+        )
+        return 1
+    except (FileNotFoundError, ValueError, RuntimeError, OSError, yaml.YAMLError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
