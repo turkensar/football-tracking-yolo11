@@ -1,39 +1,45 @@
 # HANDOFF (Geliştirici → İnceleyici)
 
-## Görev: T06 — Top takibi + enterpolasyon
+## Görev: T07 — Takım sınıflandırma
 
 **Değişen/eklenen dosyalar**
-- `src/futbolcv/types.py` — PLAN §2 veri sözleşmesine uygun `BallState(xyxy, conf, interpolated)` ve `FrameResult(frame_idx, players, ball)` dataclass'ları eklendi.
-- `src/futbolcv/ball.py` — `BallTracker(cfg)` (`select(candidates, prev_xyxy, *, frames_since_last=1)`, durumlu `update(candidates, *, frame_idx=None)`, `reset()`) ve doğrusal boşluk doldurma fonksiyonu `interpolate(states, max_gap) -> list[BallState]` eklendi.
-- `tests/test_ball.py` — (a) 3 karelik boşluk doğrusal koordinat kontrolü, (b) `max_gap` vs `max_gap+1` sınır kontrolü, (c) baştaki/sondaki boşlukların doldurulmaması, (d) 2 adaydan öncekine yakın olanın seçilmesi, önceki yokken en yüksek güven seçimi, kare başına sıçrama eşiği (`max_jump_px * frames_since_last`), durumlu `update`/`reset` ve `FrameResult` sözleşme testleri (10 test) eklendi.
-- `docs/PLAN.md` — T06 durumu `REVIEW` olarak güncellendi.
+- `src/futbolcv/team.py` — `extract_jersey_color` (kutunun üst yarısının orta bölgesinden Lab/HSV ortalama renk özniteliği) ve `TeamClassifier(cfg)` (`add_init_frame`, `fit`, `predict(frame, dets) -> np.ndarray[int]`, `reset_history`) eklendi; tahminler `dets.data["team_id"]` içine `np.ndarray[int]` olarak yazılır, uzaklık eşiği aşan uç değerler `-1` atanır ve `tracker_id` başına son `vote_window` tahminin çoğunluk oyu uygulanır.
+- `tests/test_team.py` — üst-orta kırpma doğrulaması, kırmızı/mavi 2 küme ayrımı + sarı hakemin `-1` atanması + `dets.data["team_id"]` sözleşmesi, çoğunluk oyunun tek hatalı kareyi düzeltmesi ve `reset_history()`, `n_init_frames` sınırı, eğitilmemiş/tek renkli/boş tespit kenar durumları ve HSV modu testleri (6 test) eklendi.
+- `docs/PLAN.md` — T07 durumu `REVIEW` olarak güncellendi.
 
 **Çalıştırılan komutlar ve sonuçları**
 ```
+.venv\Scripts\pytest.exe -W error tests/test_team.py -v
+-> 6 passed in 6.66s
+
 .venv\Scripts\pytest.exe -q
--> .....................................................................    [100%]
--> 69 passed, 1 deselected in 14.31s
+-> ........................................................................ [ 96%]
+-> ...                                                                      [100%]
+-> 75 passed, 1 deselected in 23.59s
 
 .venv\Scripts\ruff.exe check .
 -> All checks passed!
 
 .venv\Scripts\ruff.exe format --check .
--> 21 files already formatted
+-> 22 files already formatted
 
-git commit -m "feat: ball tracker and interpolation (T06)"
+git commit -m "feat: kmeans team classifier with majority voting (T07)"
 -> Commit atıldı (push edilmedi).
 ```
 
 **Kabul kriterleri**
-- [x] `src/futbolcv/types.py` içine §2'deki `BallState` ve `FrameResult` veri sözleşmesi yazıldı.
-- [x] `BallTracker.select(candidates, prev_xyxy)`: birden çok adayda öncekine en yakını seçer (eşit mesafede yüksek güvenle kırar), `prev_xyxy=None` ise en yüksek güvenli adayı seçer; `max_jump_px * frames_since_last` üzerindeki sıçramaları reddeder.
-- [x] `interpolate(states, max_gap)`: ≤ `max_gap` iç boşlukları doğrusal doldurur (`conf=0.0`, `interpolated=True`); `max_gap+1` ve baş/son boşlukları `None` kalır; girdi listesini değiştirmez.
-- [x] Zorunlu 4 senaryo (a, b, c, d) ve ek kenar durumlar birim testleriyle doğrulandı.
-- [x] `pytest -q`, `ruff check .`, `ruff format --check .` temiz; GPU/internet/ağırlık gerektirmiyor.
-- [x] Görev sonu commit'i (`feat: ball tracker and interpolation (T06)`) atıldı (push edilmedi).
+- [x] Kutunun üst yarısının orta bölgesinden (`jersey_top_ratio`, `jersey_center_crop_ratio`) Lab (varsayılan) veya HSV ortalama renk özniteliği çıkarılır; şort ve kenar çimi dışarıda bırakılır.
+- [x] İlk `n_init_frames` karedeki örneklerle `KMeans(k=2)` `fit` edilir (hem doğrudan `fit(samples)` hem bellek dostu artımlı `add_init_frame` + `fit()` desteklenir).
+- [x] `predict(frame, dets) -> np.ndarray[int]` sonucu hem döndürür hem de §2 / REVIEW.md sözleşmesine uygun şekilde `dets.data["team_id"]` içine `np.ndarray[int]` olarak yazar.
+- [x] Kırmızı ve mavi forma kutuları doğru 2 kümeye (`0`, `1`) ayrılır; sarı kutu küme merkezine uzaklık eşiğini aşarak `-1` olur.
+- [x] `tracker_id` başına son `vote_window` tahminin çoğunluk oyu tek hatalı kareyi düzeltir.
+- [x] `pytest -q`, `pytest -W error tests/test_team.py`, `ruff check .`, `ruff format --check .` temiz; GPU/internet/ağırlık gerektirmiyor.
+- [x] Görev sonu commit'i (`feat: kmeans team classifier with majority voting (T07)`) atıldı (push edilmedi).
 
 **Sapmalar** (plandan farklı yapılanlar + gerekçe)
-- `BallTracker.select` imzasına varsayılanı `1` olan keyword-only `frames_since_last: int = 1` parametresi eklendi; ayrıca T10 pipeline'ın son görülmeden beri geçen kare sayısını temiz yönetmesi için `select()` üzerine kurulu durumlu `update(candidates, *, frame_idx=None)` ve `reset()` metotları eklendi.
+- İki geçişli pipeline'ın (T10, R7) kareleri bellekte tutmadan yalnızca 3 elemanlı renk vektörlerini biriktirebilmesi için `add_init_frame(frame, dets)` ve sahne kesmelerinde (R3) KMeans merkezlerini koruyup yalnızca `tracker_id` oy geçmişini sıfırlayan `reset_history()` metotları eklendi.
+- Küme merkezleri fit sonrası deterministik sıraya dizildi (`team 0` / `team 1` etiketleri tekrar üretilebilir).
+- Benzersiz renk örneği sayısı `< 2` olduğunda `KMeans` `ConvergenceWarning` üretmemesi için model `is_fitted=False` bırakılıp tüm kutulara `-1` dönülür.
 
 **Açık sorular / riskler**
-- Yok.
+- `outlier_distance_threshold=45.0` sentetik ve tipik forma renkleri (kırmızı/mavi/sarı/siyah/beyaz) için OpenCV Lab uzayında doğrulandı; gerçek yayın ışığında (gölge/güneş geçişi) T11'de gözlemlenip gerekirse kalibre edilecek.
