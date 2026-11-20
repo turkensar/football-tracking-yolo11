@@ -152,6 +152,8 @@ def test_tracker_frame_rate_override(tmp_path: Path) -> None:
         "detector:\n  player_class_ids: [true]\n",
         "tracker:\n  frame_rate: 0\n",
         "tracker:\n  frame_rate: true\n",
+        "tracker:\n  scene_cut_threshold: 0\n",
+        "tracker:\n  scene_cut_threshold: 1.5\n",
         "ball:\n  max_gap_frames: -1\n",
         "team:\n  color_space: rgb\n",
         "annotate:\n  unknown_color_bgr: [100, 100]\n",

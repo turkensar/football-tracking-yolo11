@@ -117,6 +117,7 @@ class TrackerConfig:
     minimum_matching_threshold: float = 0.8
     frame_rate: float | None = None
     minimum_consecutive_frames: int = 1
+    scene_cut_threshold: float | None = 0.6
 
     def __post_init__(self) -> None:
         self.track_activation_threshold = _validate_float(
@@ -141,6 +142,14 @@ class TrackerConfig:
         self.minimum_consecutive_frames = _validate_int(
             "tracker.minimum_consecutive_frames", self.minimum_consecutive_frames, min_value=1
         )
+        if self.scene_cut_threshold is not None:
+            self.scene_cut_threshold = _validate_float(
+                "tracker.scene_cut_threshold",
+                self.scene_cut_threshold,
+                min_value=0.0,
+                max_value=1.0,
+                strict_min=True,
+            )
 
 
 @dataclass

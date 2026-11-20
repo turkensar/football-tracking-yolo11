@@ -17,6 +17,7 @@ tracker:
   minimum_matching_threshold: 0.8
   frame_rate: null
   minimum_consecutive_frames: 1
+  scene_cut_threshold: 0.6
 
 ball:
   max_gap_frames: 15
