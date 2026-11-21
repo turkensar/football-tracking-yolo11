@@ -17,6 +17,17 @@ from futbolcv.config import (
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = REPO_ROOT / "configs" / "default.yaml"
+FAST_CONFIG_PATH = REPO_ROOT / "configs" / "fast.yaml"
+
+
+def test_load_fast_config() -> None:
+    """Fast CPU preset overrides only detector.imgsz to 640."""
+    default_cfg = load_config(DEFAULT_CONFIG_PATH)
+    fast_cfg = load_config(FAST_CONFIG_PATH)
+
+    assert fast_cfg.detector.imgsz == 640
+    fast_cfg.detector.imgsz = default_cfg.detector.imgsz
+    assert fast_cfg == default_cfg
 
 
 def test_load_default_config() -> None:

@@ -1,0 +1,6 @@
+# Fast CPU preview configuration for futbol-cv.
+# Uses imgsz=640 (~2.5-3x faster on CPU than default 1280); all other parameters
+# inherit the calibrated defaults from AppConfig / configs/default.yaml.
+
+detector:
+  imgsz: 640
