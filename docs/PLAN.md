@@ -76,7 +76,7 @@ class FrameResult:
 ```
 futbol-cv/
 ├─ README.md
-├─ LICENSE                      (MIT)
+├─ LICENSE                      (AGPL-3.0 — Ultralytics AGPL olduğu için)
 ├─ requirements.txt
 ├─ requirements-dev.txt         (pytest, ruff)
 ├─ pyproject.toml               (paket + pytest + ruff ayarları)

@@ -7,12 +7,13 @@ name = "futbolcv"
 version = "0.1.0"
 description = "Football match player/ball detection, tracking, and team classification CLI."
 readme = "README.md"
-license = "MIT"
+license = "AGPL-3.0-or-later"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
     "numpy",
     "opencv-python",
+    "pillow",
     "pyyaml",
     "scikit-learn",
     "supervision<0.31",

@@ -1,5 +1,7 @@
 # futbol-cv
 
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+
 Futbol maç videolarında oyuncu ve top tespiti, kalıcı ID takibi ve forma rengine göre takım sınıflandırması yapan iki geçişli Python komut satırı aracı.
 
 ![Demo — Ekvador vs. Katar penaltı ve gol takibi](docs/assets/demo.gif)
@@ -71,14 +73,20 @@ uv pip install -r requirements-dev.txt -e .
 # uv pip install -r requirements.txt -e .
 ```
 
+TLS/sertifika hatası alırsanız sistem sertifikalarıyla kurun:
+
+```powershell
+uv pip install --system-certs -r requirements-dev.txt -e .
+```
+
 > **Önemli — Çalışma Dizini (CWD):** Tüm komutları **repo kök dizininden** (`futbol-cv/`) çalıştırın. `configs/default.yaml` içindeki yalın ağırlık adı (`yolo11s.pt`) çalışma dizinine göre `models/yolo11s.pt` olarak çözülür.
 
 ### Opsiyonel: NVIDIA GPU (CUDA) Kurulumu
 
-`requirements.txt` bilinçli olarak `torch` içermez (`ultralytics` varsayılan olarak CPU sürümünü kurar). NVIDIA GPU kullanmak için kurulumdan sonra PyTorch'un CUDA sürümünü ayrı yükleyin:
+`requirements.txt` bilinçli olarak `torch` içermez (`ultralytics` varsayılan olarak CPU sürümünü kurar). NVIDIA GPU kullanmak için [PyTorch yerel kurulum seçicisinden](https://pytorch.org/get-started/locally/) işletim sisteminize ve CUDA sürümünüze uygun `--index-url` değerini alın ve şu biçimde çalıştırın:
 
 ```powershell
-uv pip install --reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu124
+uv pip install --reinstall torch torchvision --index-url <pytorch-cuda-index-url>
 ```
 
 `detector.device: "auto"` CUDA kullanılabilir olduğunda otomatik olarak GPU (`0`), aksi halde CPU seçer.
@@ -205,7 +213,7 @@ Her çalıştırma `--output` klasöründe üç dosya üretir:
 
 ## Lisans ve Atıflar
 
-- **Kod lisansı:** [MIT License](LICENSE)
+- **Kod lisansı:** [GNU AGPL-3.0](LICENSE) — Ultralytics YOLO AGPL-3.0 lisanslı olduğu için proje kodu da GNU AGPL-3.0 altında lisanslanmıştır.
 - **Demo görselleri ve GIF kaynağı:**
   - Başlık: *[2022 FIFA World Cup's first goal by Enner Valencia of Ecuador against Qatar](https://commons.wikimedia.org/wiki/File:2022_FIFA_World_Cup%27s_first_goal_by_Enner_Valencia_of_Ecuador_against_Qatar.webm)*
   - Yazar: **Mehr News Agency** ([mehrnews.com](https://www.mehrnews.com))
