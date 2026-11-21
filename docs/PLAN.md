@@ -127,8 +127,10 @@ Durumlar: `TODO` · `DOING` · `REVIEW` (handoff yazıldı) · `FIX` (düzeltme 
 | T09 | Exporter | DONE |
 | T10 | Pipeline + CLI | DONE |
 | T11 | Uçtan uca deneme + ayar | DONE |
-| T12 | README + demo GIF | REVIEW |
-| T13 | (Opsiyonel) Futbol veri setiyle fine-tune | TODO |
+| T12 | README + demo GIF | DONE |
+| T13a | Colab eğitim not defteri | REVIEW |
+| T13b | Futbol modeli için config + hakem sınıfı | TODO |
+| T13c | (Kullanıcı Colab'da eğitir) → karşılaştırma + README | TODO |
 
 Her görevde genel kabul kriterleri (aşağıda tekrar yazılmaz):
 - `ruff check .` ve `ruff format --check .` temiz.
@@ -204,9 +206,30 @@ Her görevde genel kabul kriterleri (aşağıda tekrar yazılmaz):
 - `scripts/make_demo_gif.py`: çıktı videodan ≤10 MB GIF.
 - **Kabul:** README'deki komutlar temiz klonda birebir çalışır; repoda ağırlık/video yok (`git status` temiz, büyük dosya yok).
 
-### T13 — (Opsiyonel) Fine-tune
-- Açık lisanslı bir futbol veri setiyle (sınıflar: player, goalkeeper, referee, ball) YOLO11 fine-tune; eğitim komutu ve sonuçlar (mAP) README'ye.
-- **Kabul:** Top tespit oranı T11'deki COCO modeline göre aynı klipte ölçülebilir şekilde artar; ağırlık repoya değil, release/indirme linkine konur.
+### T13 — Fine-tune (Colab GPU)
+Bu makinede GPU olmadığı için eğitim Google Colab'da (ücretsiz T4) yapılır. Not defterini Gemini yazar, **kullanıcı** Colab'da çalıştırır, ağırlığı `models/` klasörüne indirir. Gemini not defterini çalıştıramaz.
+
+**Veri seti:** Açık lisanslı, sınıfları `ball, goalkeeper, player, referee` olan bir futbol veri seti (aday: Roboflow Universe'teki "football-players-detection" veri seti). Lisans HANDOFF'ta **kaynak linkiyle doğrulanacak**; CC BY ya da daha serbest bir lisans olmalı. SoccerNet gibi NDA gerektiren setler kullanılmaz. Ekvador–Katar klibi (T11) eğitim setinde **olmamalı**; o klip test için ayrılmış durumda.
+
+#### T13a — Colab eğitim not defteri
+- `notebooks/finetune_colab.ipynb`: GPU kontrolü → bağımlılıkların kurulumu (requirements.txt'teki ultralytics sürümüyle) → veri setinin indirilmesi → `yolo11s.pt`'den eğitim (`imgsz=1280`, `epochs≈50`, `batch` T4'e göre otomatik ya da 8) → doğrulama (mAP50, mAP50-95; ball sınıfı için ayrıca) → `best.pt` ve `results.csv` dosyalarının indirilmesi.
+- **Gizli anahtar:** Roboflow API anahtarı (gerekirse) yalnızca Colab "Secrets" (`userdata.get("ROBOFLOW_API_KEY")`) üzerinden okunur. Not defterine, repoya ya da çıktıya **asla** yazılmaz.
+- Repoya not defteri **çıktıları temizlenmiş** olarak girer. Başa "Colab'da aç" rozeti konur (GitHub linki push sonrası doldurulur; şimdilik yer tutucu).
+- `scripts/train.py`: Not defterindeki eğitim çağrısının argparse'lı yerel/sunucu karşılığı (`--data --epochs --imgsz --batch --device`). Not defteri bunu çağırabilir ya da aynı parametreleri kullanır.
+- **Kabul:** `python scripts/train.py --help` çalışır. Birim testi: `ultralytics.YOLO.train` mock'lanarak argümanların doğru geçtiği doğrulanır. Not defterinin JSON'u geçerlidir ve çıktı hücreleri boştur (testle kontrol). Not defterinde gizli anahtar ya da yerel yol yoktur.
+
+#### T13b — Futbol modeli için config + hakem sınıfı
+- `configs/football.yaml`: `weights: football_yolo11s.pt` (→ `models/`), sınıf eşlemesi veri setinin `data.yaml` dosyasından alınır (ör. `ball_class_ids`, `player_class_ids` = player + goalkeeper, `referee_class_ids` = referee).
+- `DetectorConfig.referee_class_ids: list[int] = []` (yeni). Hakem tespitleri oyuncularla birlikte takip edilir, ancak `TeamClassifier`'da **renkten bağımsız olarak `-1`** atanır. `class_id` değeri takipten sonra da korunur (`sv.ByteTrack` bunu koruyor, testle doğrula). Hakem örnekleri KMeans eğitimine girmez.
+- COCO config'i (default.yaml / fast.yaml) aynen çalışmaya devam eder (`referee_class_ids=[]`).
+- **Kabul:** Mock'lu testler: hakem sınıfı → `-1`, KMeans'e girmez; COCO yolunda davranış değişmez; `football.yaml` yüklenir.
+
+#### T13c — Karşılaştırma + README (kullanıcı `models/football_yolo11s.pt` dosyasını koyduktan sonra)
+- T11 klibinde `default.yaml` ile `football.yaml`'ı karşılaştır (tam klip): `ball.detected_ratio`, `visible_ratio`, `unique_player_ids`, `player_ids_by_team["-1"]`, `pass1_fps`.
+- Gerekirse `ball_conf` değerini futbol modeli için yeniden ayarla (football.yaml'da).
+- README: eğitim bölümü (veri seti + lisans atfı, Colab rozeti, eğitim parametreleri, mAP tablosu) ve COCO-futbol karşılaştırma tablosu. Demo GIF daha iyiyse yeniden üretilir.
+- Ağırlık dosyası repoya girmez. README'de "GitHub Release'ten indirin" talimatı ve indirme linki için yer tutucu bulunur (release'i kullanıcı oluşturur).
+- **Kabul:** Top görünürlüğü COCO modeline göre aynı klipte artar (artmazsa dürüstçe raporlanır ve neden analiz edilir). Ağırlık dosyası git'te yok.
 
 ## 5. Riskler ve önlemler
 
