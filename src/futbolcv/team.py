@@ -107,12 +107,24 @@ def _majority_vote(history: deque[int]) -> int:
 class TeamClassifier:
     """Unsupervised 2-team jersey classifier using KMeans(k=2) and temporal voting."""
 
-    def __init__(self, cfg: TeamConfig) -> None:
+    def __init__(
+        self,
+        cfg: TeamConfig,
+        *,
+        referee_class_ids: Sequence[int] = (),
+    ) -> None:
         self.cfg = cfg
+        self._referee_class_ids: frozenset[int] = frozenset(int(cid) for cid in referee_class_ids)
         self._centers: np.ndarray | None = None
         self._init_features: list[np.ndarray] = []
         self._init_frames_collected: int = 0
         self._vote_history: dict[int, deque[int]] = {}
+
+    def _is_referee(self, dets: sv.Detections, idx: int) -> bool:
+        """Return True when detection ``idx`` belongs to an explicit referee class ID."""
+        if not self._referee_class_ids or dets.class_id is None:
+            return False
+        return int(dets.class_id[idx]) in self._referee_class_ids
 
     @property
     def is_fitted(self) -> bool:
@@ -145,12 +157,18 @@ class TeamClassifier:
         )
 
     def add_init_frame(self, frame: np.ndarray, dets: sv.Detections) -> int:
-        """Collect jersey color samples from one frame up to ``cfg.n_init_frames`` frames."""
+        """Collect jersey color samples from one frame up to ``cfg.n_init_frames`` frames.
+
+        Detections whose ``class_id`` matches ``referee_class_ids`` are excluded so
+        referee jerseys never enter ``KMeans`` fitting.
+        """
         if self._init_frames_collected >= self.cfg.n_init_frames:
             return 0
 
         added = 0
-        for xyxy in dets.xyxy:
+        for idx, xyxy in enumerate(dets.xyxy):
+            if self._is_referee(dets, idx):
+                continue
             feat = self._extract_box_feature(frame, xyxy)
             if feat is not None:
                 self._init_features.append(feat)
@@ -223,6 +241,9 @@ class TeamClassifier:
         tracker_ids = dets.tracker_id
         resolved: list[int] = []
         for idx in range(count):
+            if self._is_referee(dets, idx):
+                resolved.append(-1)
+                continue
             raw_label = self._predict_raw_label(frame, dets.xyxy[idx])
             if tracker_ids is not None:
                 tid = int(tracker_ids[idx])

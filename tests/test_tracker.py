@@ -114,3 +114,29 @@ def test_player_tracker_invalid_fps_raises(bad_fps: float) -> None:
     """Non-positive, non-finite, or boolean fps raises ValueError."""
     with pytest.raises(ValueError):
         PlayerTracker(TrackerConfig(), fps=bad_fps)
+
+
+def test_player_tracker_preserves_class_ids_for_players_and_referees() -> None:
+    """ByteTrack preserves distinct class_id values (player vs referee) across tracked frames."""
+    tracker = PlayerTracker(TrackerConfig(), fps=25.0)
+
+    for frame_idx in range(10):
+        shift = frame_idx * 4.0
+        dets = sv.Detections(
+            xyxy=np.array(
+                [
+                    [40.0 + shift, 80.0, 80.0 + shift, 180.0],
+                    [200.0 + shift, 90.0, 240.0 + shift, 190.0],
+                ],
+                dtype=np.float32,
+            ),
+            confidence=np.array([0.9, 0.85], dtype=np.float32),
+            class_id=np.array([2, 3], dtype=int),  # 2=player, 3=referee
+        )
+        tracked = tracker.update(dets)
+        assert len(tracked) == 2
+        assert tracked.class_id is not None
+        assert tracked.tracker_id is not None
+
+        order = np.argsort(tracked.xyxy[:, 0])
+        assert [int(tracked.class_id[i]) for i in order] == [2, 3]

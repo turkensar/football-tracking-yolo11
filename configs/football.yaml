@@ -1,0 +1,11 @@
+# Configuration for the fine-tuned football YOLO11s model (T13).
+# Dataset classes (football-players-detection-3zvbc):
+#   0: ball, 1: goalkeeper, 2: player, 3: referee
+# Place trained weights at models/football_yolo11s.pt (gitignored).
+# All other parameters inherit calibrated defaults from AppConfig / configs/default.yaml.
+
+detector:
+  weights: "football_yolo11s.pt"
+  player_class_ids: [1, 2]
+  referee_class_ids: [3]
+  ball_class_ids: [0]

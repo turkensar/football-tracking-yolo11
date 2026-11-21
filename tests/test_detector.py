@@ -199,6 +199,56 @@ def test_detector_custom_class_ids_and_height_filter(
     assert np.array_equal(balls.class_id, np.array([3]))
 
 
+def test_detector_includes_referee_classes_with_players(
+    monkeypatch: pytest.MonkeyPatch,
+    synthetic_frame: np.ndarray,
+    tmp_path: Path,
+) -> None:
+    """Referee detections are returned with players for tracking while keeping their class_id."""
+    predict_classes: list[list[int]] = []
+    fake_result = _FakeResult(
+        _FakeBoxes(
+            xyxy=np.array(
+                [
+                    [10, 20, 40, 120],  # goalkeeper (1)
+                    [60, 20, 90, 120],  # player (2)
+                    [110, 20, 140, 120],  # referee (3)
+                    [160, 80, 172, 92],  # ball (0)
+                ]
+            ),
+            conf=np.array([0.8, 0.85, 0.75, 0.3]),
+            cls=np.array([1, 2, 3, 0]),
+        ),
+        names={0: "ball", 1: "goalkeeper", 2: "player", 3: "referee"},
+    )
+
+    class FakeYOLO:
+        def __init__(self, weights: str) -> None:
+            pass
+
+        def predict(self, **kwargs: Any) -> list[_FakeResult]:
+            predict_classes.append(kwargs["classes"])
+            return [fake_result]
+
+    monkeypatch.setattr("futbolcv.detector.YOLO", FakeYOLO)
+
+    cfg = DetectorConfig(
+        weights="football_yolo11s.pt",
+        device="cpu",
+        player_class_ids=[1, 2],
+        referee_class_ids=[3],
+        ball_class_ids=[0],
+    )
+    detector = Detector(cfg, models_dir=tmp_path / "models")
+    players, balls = detector.detect(synthetic_frame)
+
+    assert predict_classes == [[0, 1, 2, 3]]
+    assert len(players) == 3
+    assert np.array_equal(players.class_id, np.array([1, 2, 3]))
+    assert len(balls) == 1
+    assert np.array_equal(balls.class_id, np.array([0]))
+
+
 def test_detector_handles_empty_results(
     monkeypatch: pytest.MonkeyPatch,
     synthetic_frame: np.ndarray,

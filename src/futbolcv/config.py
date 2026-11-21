@@ -84,6 +84,7 @@ class DetectorConfig:
     imgsz: int = 1280
     device: str = "auto"
     player_class_ids: list[int] = field(default_factory=lambda: [0])
+    referee_class_ids: list[int] = field(default_factory=list)
     ball_class_ids: list[int] = field(default_factory=lambda: [32])
     min_player_box_height_px: int = 0
 
@@ -104,6 +105,9 @@ class DetectorConfig:
         )
         self.player_class_ids = _validate_int_list(
             "detector.player_class_ids", self.player_class_ids
+        )
+        self.referee_class_ids = _validate_int_list(
+            "detector.referee_class_ids", self.referee_class_ids
         )
         self.ball_class_ids = _validate_int_list("detector.ball_class_ids", self.ball_class_ids)
 

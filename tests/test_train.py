@@ -198,3 +198,8 @@ def test_colab_notebook_valid_clean_and_secret_safe() -> None:
     assert match is not None
     expected_pin = f"ultralytics=={match.group(1)}"
     assert expected_pin in full_source
+
+    # Evaluates both val and test splits and stores both keys in val_metrics.json
+    assert 'evaluate_split("val")' in full_source
+    assert 'evaluate_split("test")' in full_source
+    assert "val_metrics.json" in full_source

@@ -278,3 +278,64 @@ def test_pipeline_max_frames_caps_processing(tmp_path: Path) -> None:
     assert len(list(VideoReader(result_video))) == 4
     summary = json.loads((out_dir / cfg.output.summary_filename).read_text(encoding="utf-8"))
     assert summary["total_frames"] == 4
+
+
+def test_pipeline_football_config_keeps_referee_unknown(tmp_path: Path) -> None:
+    """End-to-end pipeline with football class IDs tracks referees and labels them team -1."""
+    video_path = tmp_path / "football_clip.mp4"
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    writer = cv2.VideoWriter(str(video_path), fourcc, 25.0, (320, 240))
+    assert writer.isOpened()
+    try:
+        for i in range(6):
+            frame = np.full((240, 320, 3), PITCH_BGR, dtype=np.uint8)
+            shift = i * 4
+            # Red player, blue player, and red-wearing referee (non-overlapping boxes)
+            cv2.rectangle(frame, (20 + shift, 50), (60 + shift, 100), RED_BGR, -1)
+            cv2.rectangle(frame, (120 + shift, 50), (160 + shift, 100), BLUE_BGR, -1)
+            cv2.rectangle(frame, (220 + shift, 50), (260 + shift, 100), RED_BGR, -1)
+            writer.write(frame)
+    finally:
+        writer.release()
+
+    out_dir = tmp_path / "out_football"
+    cfg = AppConfig()
+    cfg.detector.player_class_ids = [1, 2]
+    cfg.detector.referee_class_ids = [3]
+    cfg.detector.ball_class_ids = [0]
+    cfg.team.n_init_frames = 3
+
+    class _FootballMockDetector:
+        def __init__(self) -> None:
+            self._call = 0
+
+        def detect(self, frame: np.ndarray) -> tuple[sv.Detections, sv.Detections]:
+            idx = self._call
+            self._call += 1
+            shift = idx * 4.0
+            players = sv.Detections(
+                xyxy=np.array(
+                    [
+                        [20.0 + shift, 50.0, 60.0 + shift, 150.0],
+                        [120.0 + shift, 50.0, 160.0 + shift, 150.0],
+                        [220.0 + shift, 50.0, 260.0 + shift, 150.0],
+                    ],
+                    dtype=np.float32,
+                ),
+                confidence=np.array([0.92, 0.90, 0.88], dtype=np.float32),
+                class_id=np.array([2, 2, 3], dtype=int),
+            )
+            balls = sv.Detections.empty()
+            return players, balls
+
+    run(
+        video_path,
+        out_dir,
+        cfg,
+        detector=_FootballMockDetector(),  # type: ignore[arg-type]
+        show_progress=False,
+    )
+
+    summary = json.loads((out_dir / cfg.output.summary_filename).read_text(encoding="utf-8"))
+    assert summary["unique_player_ids"] == 3
+    assert summary["player_ids_by_team"] == {"0": 1, "1": 1, "-1": 1}

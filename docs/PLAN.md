@@ -128,8 +128,8 @@ Durumlar: `TODO` · `DOING` · `REVIEW` (handoff yazıldı) · `FIX` (düzeltme 
 | T10 | Pipeline + CLI | DONE |
 | T11 | Uçtan uca deneme + ayar | DONE |
 | T12 | README + demo GIF | DONE |
-| T13a | Colab eğitim not defteri | REVIEW |
-| T13b | Futbol modeli için config + hakem sınıfı | TODO |
+| T13a | Colab eğitim not defteri | DONE |
+| T13b | Futbol modeli için config + hakem sınıfı | REVIEW |
 | T13c | (Kullanıcı Colab'da eğitir) → karşılaştırma + README | TODO |
 
 Her görevde genel kabul kriterleri (aşağıda tekrar yazılmaz):

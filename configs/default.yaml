@@ -8,6 +8,7 @@ detector:
   imgsz: 1280
   device: "auto"
   player_class_ids: [0]
+  referee_class_ids: []
   ball_class_ids: [32]
   min_player_box_height_px: 0
 

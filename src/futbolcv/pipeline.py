@@ -125,7 +125,10 @@ def run(
 
     player_tracker = PlayerTracker(cfg.tracker, fps=effective_fps)
     ball_tracker = BallTracker(cfg.ball)
-    team_classifier = TeamClassifier(cfg.team)
+    team_classifier = TeamClassifier(
+        cfg.team,
+        referee_class_ids=cfg.detector.referee_class_ids,
+    )
 
     # Pass 1 timer covers warmup inference + tracking/team pass + ball interpolation
     # (every frame runs detection once, excluding model weight loading).

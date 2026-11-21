@@ -1,54 +1,29 @@
 # HANDOFF (Geliştirici → İnceleyici)
 
-## Görev: T13a — Colab eğitim not defteri
+## Görev: T13b — Futbol modeli için config + hakem sınıfı (+ T13a not defteri `test` split eklemesi)
+
+> **Kullanıcıya not:** `notebooks/finetune_colab.ipynb` içindeki `test` split değerlendirmesi eklendi; **not defteri artık çalıştırılabilir.** Colab'da eğitimi tamamlayıp `models/football_yolo11s.pt` dosyasını ve `val_metrics.json` çıktısını aldığınızda T13c'ye geçebiliriz. (Roboflow sayfasını açtığınızda lisansın **CC BY 4.0** olduğunu gözle teyit etmeyi unutmayın.)
 
 **Değişen/eklenen dosyalar**
-- `notebooks/finetune_colab.ipynb` — Google Colab (T4 GPU) eğitim not defteri (nbformat 4.5, **tüm kod çıktıları ve `execution_count` alanları temizlenmiş**):
-  - Başta yer tutuculu **Open in Colab** rozeti (`<GITHUB_USER>/<REPO_NAME>`).
-  - Hücre 1: `nvidia-smi` + `torch.cuda.is_available()` GPU kontrolü (GPU yoksa açık hata verir).
-  - Hücre 2: `requirements.txt` ile birebir aynı `ultralytics==8.4.216` + `roboflow` kurulumu.
-  - Hücre 3: Yalnızca Colab Secrets (`userdata.get("ROBOFLOW_API_KEY")`) ile Roboflow'dan veri setini (`yolov11` formatı) indirme, `data.yaml` yollarını Colab için köke sabitleme ve sınıf haritasını ekrana yazdırma.
-  - Hücre 4: `yolo11s.pt`'den ince ayar (`imgsz=1280`, `epochs=50`, `batch=8`, `patience=15`, `seed=42`).
-  - Hücre 5: `best.pt` üzerinde doğrulama (`mAP50`, `mAP50-95`, sınıf bazlı `AP50` / `AP50-95` ve özellikle `ball` vurgusu) + `val_metrics.json` kaydı.
-  - Hücre 6: `best.pt`'yi `football_yolo11s.pt` adıyla kopyalayıp `results.csv` ve `val_metrics.json` ile birlikte indirme (+ yorum satırında opsiyonel Google Drive yedeği).
-- `scripts/train.py` — Not defterindeki eğitim çağrısının `argparse`'lı yerel/sunucu karşılığı (`--data`, `--weights`, `--epochs`, `--imgsz`, `--batch`, `--device`, `--project`, `--name`, `--patience`, `--seed`). `ultralytics` ve `torch` tembel (lazy) import edilir; `--help` ve hata yolları hızlı ve traceback'siz çalışır.
-- `tests/test_train.py` — 9 yeni birim testi: `scripts/train.py --help`, mocked `ultralytics.YOLO.train` argüman doğrulaması, `auto` cihaz çözümlemesi, geçersiz argüman / eksik dosya hata kontrolü, ve not defteri doğrulaması (geçerli JSON, boş çıktı hücreleri, `Open in Colab` rozeti, `userdata.get("ROBOFLOW_API_KEY")`, gizli anahtar/yerel yol yokluğu, `requirements.txt` ile eşleşen `ultralytics==8.4.216` sabiti).
-- `docs/PLAN.md` — T13a durumu `DOING` → `REVIEW` olarak güncellendi.
-
----
-
-### Seçilen Veri Seti ve Lisans Doğrulaması
-- **Veri seti:** Roboflow Universe — *Football Players Detection* (`roboflow-jvuqo/football-players-detection-3zvbc`, v1)
-- **Kaynak URL:** https://universe.roboflow.com/roboflow-jvuqo/football-players-detection-3zvbc
-- **Lisans:** **CC BY 4.0** (https://creativecommons.org/licenses/by/4.0/) — T13c'de `README.md` atıf bölümüne eklenecektir.
-- **Sınıflar (4):** `0: ball`, `1: goalkeeper`, `2: player`, `3: referee`
-- **Veri sızıntısı kontrolü:** T11'de kullanılan 2022 Dünya Kupası Ekvador–Katar klibi bu eğitim setinde yer almaz (Avrupa/Bundesliga yayın karelerinden oluşur).
-- **Doğrulama notu:** `universe.roboflow.com` HTTP istemcisinde Cloudflare doğrulama sayfası döndürdüğü için sayfa kazınmadı; lisans (`CC BY 4.0`) ve `data.yaml` şeması arama sonuçlarından ve Roboflow Sports dokümantasyonundan teyit edildi. Ayrıca not defterinin 3. hücresi indirilen `data.yaml` içeriğini eğitim başlamadan ekrana basar.
-
----
-
-### Kullanıcı İçin: Colab'da Nasıl Çalıştırılır?
-1. **Not defterini açın:** [Google Colab](https://colab.research.google.com/) adresine gidin → `Dosya -> Not defteri yükle` ile yerel repodaki `notebooks/finetune_colab.ipynb` dosyasını yükleyin (repo GitHub'a push edildikten sonra üstteki **Open in Colab** rozetiyle de açılabilir).
-2. **GPU seçin:** Üst menüden `Çalışma zamanı -> Çalışma zamanı türünü değiştir -> Donanım hızlandırıcı: T4 GPU -> Kaydet` adımlarını izleyin.
-3. **Roboflow API anahtarını Secrets'a ekleyin:**
-   - Ücretsiz Roboflow hesabınızdan `Settings -> Roboflow API` bölümündeki Private API Key'i kopyalayın.
-   - Colab sol kenar çubuğundaki **Anahtar (Secrets)** simgesine tıklayın → **Yeni gizli anahtar ekle** → Ad: `ROBOFLOW_API_KEY`, Değer: anahtarınız → **Not defteri erişimi** anahtarını açın. (Anahtarı kod hücrelerine yazmayın.)
-4. **Hücreleri çalıştırın:** `Çalışma zamanı -> Tümünü çalıştır` seçin.
-   - 1. hücrede `Tesla T4` göründüğünü, 3. hücrede `names: ['ball', 'goalkeeper', 'player', 'referee']` yazdırıldığını kontrol edin.
-   - 4. hücrede `imgsz=1280, batch=8` ile bellek hatası (CUDA OOM) alırsanız `BATCH = 4` veya `BATCH = -1` yapıp o hücreyi tekrar çalıştırın.
-   - 5. hücrede genel `mAP50` / `mAP50-95` ve `ball` sınıfı metriklerini inceleyin.
-5. **Çıktıları indirip yerele koyun:**
-   - 6. hücre `football_yolo11s.pt`, `results.csv` ve `val_metrics.json` dosyalarını tarayıcınıza indirir (kopma riskine karşı opsiyonel Google Drive yedek satırlarını da açabilirsiniz).
-   - İndirilen `football_yolo11s.pt` dosyasını yerel repoda **`models/football_yolo11s.pt`** konumuna kaydedin (`models/` gitignored olduğu için repoya girmez).
-   - `val_metrics.json` içeriğini T13c karşılaştırma ve README güncellemesi için paylaşın.
-
----
+- `notebooks/finetune_colab.ipynb` — REVIEW.md isteği doğrultusunda 5. hücre güncellendi: `best.pt` hem `split="val"` hem de `data.yaml`'da tanımlıysa `split="test"` üzerinde değerlendirilir; `val_metrics.json` `{"val": {"overall": ..., "per_class": ...}, "test": {"overall": ..., "per_class": ...}}` biçiminde kaydedilir (çıktı hücreleri boş, ruff temiz).
+- `configs/football.yaml` — Fine-tune futbol modeli için profil eklendi: `weights: "football_yolo11s.pt"`, `ball_class_ids: [0]`, `player_class_ids: [1, 2]` (goalkeeper + player), `referee_class_ids: [3]`; diğer parametreler `AppConfig` varsayılanlarından miras alınır.
+- `configs/default.yaml` & `src/futbolcv/config.py` — `DetectorConfig.referee_class_ids: list[int] = field(default_factory=list)` eklendi ve `_validate_int_list` ile doğrulandı; `default.yaml` / `fast.yaml` için `[]` olarak COCO davranışını korur.
+- `src/futbolcv/detector.py` — `Detector.detect`, `player_class_ids | referee_class_ids` sınıflarını birlikte ilk `sv.Detections` içinde (orijinal `class_id` korunarak) döner; böylece hakemler oyuncularla birlikte takip edilir.
+- `src/futbolcv/team.py` — `TeamClassifier.__init__` opsiyonel `referee_class_ids: Sequence[int] = ()` parametresi eklendi:
+  - `add_init_frame`: `class_id in referee_class_ids` tespitlerini atlar (hakem formaları KMeans eğitimine girmez).
+  - `predict`: `class_id in referee_class_ids` tespitlerine forma renginden ve önceki oy geçmişinden bağımsız olarak doğrudan `-1` atar.
+- `src/futbolcv/pipeline.py` — `TeamClassifier(cfg.team, referee_class_ids=cfg.detector.referee_class_ids)` bağlantısı eklendi.
+- `tests/test_config.py`, `tests/test_detector.py`, `tests/test_tracker.py`, `tests/test_team.py`, `tests/test_pipeline.py`, `tests/test_train.py` — 6 yeni test eklendi:
+  - `test_load_football_config` + geçersiz `referee_class_ids` doğrulaması
+  - `test_detector_includes_referee_classes_with_players`
+  - `test_player_tracker_preserves_class_ids_for_players_and_referees` (`sv.ByteTrack`'in `class_id` koruduğunun doğrulaması)
+  - `test_referee_class_excluded_from_kmeans_and_always_unknown` (aynı takım renginde ve eski takım oy geçmişli ID'de bile hakem → `-1`, KMeans merkezleri etkilenmez)
+  - `test_pipeline_football_config_keeps_referee_unknown` (uçtan uca mocked futbol pipeline testi)
+  - `test_colab_notebook_valid_clean_and_secret_safe` içine `evaluate_split("val")` + `evaluate_split("test")` kontrolü eklendi.
+- `docs/PLAN.md` — T13b durumu `DOING` → `REVIEW` olarak güncellendi.
 
 **Çalıştırılan komutlar ve sonuçları**
 ```
-.venv\Scripts\python.exe scripts\train.py --help
--> Exit 0 (--data, --weights, --epochs, --imgsz, --batch, --device, --project, --name, --patience, --seed)
-
 .venv\Scripts\ruff.exe check .
 -> All checks passed!
 
@@ -56,21 +31,19 @@
 -> 30 files already formatted
 
 .venv\Scripts\pytest.exe -q
--> 113 passed, 1 deselected in 13.35s
+-> 119 passed, 1 deselected in 13.94s
 ```
 
 **Kabul kriterleri**
-- [x] `python scripts/train.py --help` çalışır.
-- [x] Birim testi `ultralytics.YOLO.train`'i mock'layarak tüm argümanların doğru geçtiğini doğrular.
-- [x] `notebooks/finetune_colab.ipynb` geçerli JSON'dur, tüm kod hücrelerinin çıktıları ve `execution_count` alanları boştur (testle doğrulanır).
-- [x] Not defterinde gizli anahtar veya yerel dosya yolu yoktur; API anahtarı yalnızca Colab Secrets (`userdata.get("ROBOFLOW_API_KEY")`) ile okunur; `ultralytics==8.4.216` sürümü `requirements.txt` ile eşleşir.
-- [x] Veri seti kaynağı + CC BY 4.0 lisansı ve adım adım "Colab'da nasıl çalıştırılır" rehberi HANDOFF'a eklendi.
-- [x] `pytest -q` (113 passed, 1 deselected), `ruff check .`, `ruff format --check .` temiz; T13a commit'i atıldı (push edilmedi).
+- [x] `notebooks/finetune_colab.ipynb` 5. hücrede `test` split'i varsa `split="test"` ile de değerlendiriyor ve `val_metrics.json`'ı `{"val": ..., "test": ...}` olarak kaydediyor; çıktılar boş; **not defteri artık çalıştırılabilir.**
+- [x] `configs/football.yaml` yükleniyor (`weights: football_yolo11s.pt`, `ball_class_ids: [0]`, `player_class_ids: [1, 2]`, `referee_class_ids: [3]`).
+- [x] `DetectorConfig.referee_class_ids` eklendi; hakem tespitleri oyuncularla birlikte takip ediliyor, `sv.ByteTrack` `class_id` değerini koruyor (testle doğrulandı).
+- [x] Hakem tespitleri KMeans eğitimine girmiyor ve `TeamClassifier.predict` içinde renkten ve önceki oy geçmişinden bağımsız olarak `-1` alıyor (birim ve uçtan uca mocked pipeline testiyle doğrulandı).
+- [x] COCO profilleri (`default.yaml`, `fast.yaml`) `referee_class_ids=[]` ile değişmeden çalışıyor.
+- [x] `pytest -q` (119 passed, 1 deselected), `ruff check .`, `ruff format --check .` temiz; T13b commit'i atıldı (push edilmedi).
 
 **Sapmalar** (plandan farklı yapılanlar + gerekçe)
-- Not defteri 3. hücrede Roboflow'un ürettiği `data.yaml` içindeki göreli yolları (`../train/images`) mutlak `path: <dataset_dir>` + `train/images` biçimine normalize eder. Gerekçe: Ultralytics'in Colab'da varsayılan `datasets_dir` ayarı yüzünden göreli `../` yollarında `FileNotFoundError` verme riskini önler.
-- Not defteri 6. hücrede `best.pt` dosyasını doğrudan `football_yolo11s.pt` adıyla kopyalayıp `val_metrics.json` ile birlikte indirir; böylece kullanıcının elle dosya adı değiştirmesi gerekmez ve T13c için sınıf bazlı metrikler kaybolmaz.
+- `TeamClassifier.predict` içinde hakem sınıfı (`class_id in referee_class_ids`) doğrudan `-1` döner ve o `tracker_id`'nin oy geçmişine (`_vote_history`) dokunmaz. Gerekçe: (a) bir hakem örtüşmede oyuncunun eski ID'sini devraldığında eski takımın oy penceresinden etkilenmeden anında `-1` olur, (b) tek karelik yanlış hakem sınıfı tespiti bir oyuncunun geçmişini kirletmez.
 
 **Açık sorular / riskler**
-- T4 (16 GB VRAM) üzerinde `imgsz=1280` + `batch=8` genellikle sığar ancak Colab ortamındaki PyTorch sürümüne göre VRAM sınırına yaklaşabilir; bu durum için not defterine `BATCH = 4` veya `-1` (AutoBatch) notu eklendi.
-- Sıradaki yerel görev **T13b** (T13a onayı sonrası); **T13c** ise kullanıcı `models/football_yolo11s.pt` dosyasını yerleştirdikten sonra başlayacak.
+- `T13c` görevine kullanıcı Colab eğitimini tamamlayıp `models/football_yolo11s.pt` dosyasını yerleştirene kadar **başlanmayacaktır**.

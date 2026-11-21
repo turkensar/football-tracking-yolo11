@@ -238,3 +238,59 @@ def test_hsv_color_space_mode() -> None:
     labels = clf.predict(frame, dets)
     assert {int(labels[0]), int(labels[1])} == {0, 1}
     assert int(labels[2]) == -1
+
+
+def test_referee_class_excluded_from_kmeans_and_always_unknown() -> None:
+    """Explicit referee class IDs never enter KMeans and always predict -1 regardless of color."""
+    frame = np.full((240, 480, 3), PITCH_BGR, dtype=np.uint8)
+    red_box = [20.0, 40.0, 60.0, 140.0]
+    blue_box = [120.0, 40.0, 160.0, 140.0]
+    # Referee wearing the EXACT same red jersey as Team 0 AND another bright yellow ref
+    red_ref_box = [220.0, 40.0, 260.0, 140.0]
+    yellow_ref_box = [320.0, 40.0, 360.0, 140.0]
+    _draw_player(frame, red_box, RED_BGR)
+    _draw_player(frame, blue_box, BLUE_BGR)
+    _draw_player(frame, red_ref_box, RED_BGR)
+    _draw_player(frame, yellow_ref_box, YELLOW_BGR)
+
+    init_dets = sv.Detections(
+        xyxy=np.array([red_box, blue_box, yellow_ref_box], dtype=np.float32),
+        confidence=np.array([0.9, 0.9, 0.9], dtype=np.float32),
+        class_id=np.array([2, 2, 3], dtype=int),
+    )
+
+    clf = TeamClassifier(TeamConfig(), referee_class_ids=[3])
+    added = clf.add_init_frame(frame, init_dets)
+    # Only the 2 non-referee players enter KMeans init features
+    assert added == 2
+
+    clf_no_ref = TeamClassifier(TeamConfig())
+    clf_no_ref.add_init_frame(frame, _make_detections([red_box, blue_box]))
+    clf.fit()
+    clf_no_ref.fit()
+    assert clf.cluster_centers is not None
+    assert clf_no_ref.cluster_centers is not None
+    assert np.allclose(clf.cluster_centers, clf_no_ref.cluster_centers)
+
+    # First prime tracker_id=7 as a red player, then simulate ID switch onto a referee (class_id=3)
+    player_det = sv.Detections(
+        xyxy=np.array([red_box], dtype=np.float32),
+        confidence=np.array([0.9], dtype=np.float32),
+        class_id=np.array([2], dtype=int),
+        tracker_id=np.array([7], dtype=int),
+    )
+    red_team_id = int(clf.predict(frame, player_det)[0])
+    assert red_team_id in (0, 1)
+
+    mixed_dets = sv.Detections(
+        xyxy=np.array([red_box, blue_box, red_ref_box], dtype=np.float32),
+        confidence=np.array([0.9, 0.9, 0.9], dtype=np.float32),
+        class_id=np.array([2, 2, 3], dtype=int),
+        tracker_id=np.array([1, 2, 7], dtype=int),
+    )
+    labels = clf.predict(frame, mixed_dets)
+    assert int(labels[0]) == red_team_id
+    assert int(labels[1]) == 1 - red_team_id
+    # Even with identical red color and prior Team-0 vote history on ID 7, referee is immediately -1
+    assert int(labels[2]) == -1
+    assert np.array_equal(mixed_dets.data["team_id"], labels)

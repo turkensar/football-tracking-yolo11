@@ -54,8 +54,11 @@ class Detector:
         self._model = YOLO(str(self.weights_path))
 
     def detect(self, frame: np.ndarray) -> tuple[sv.Detections, sv.Detections]:
-        """Run detection on a BGR frame and return ``(players, ball_candidates)``."""
-        target_classes = sorted(set(self.cfg.player_class_ids) | set(self.cfg.ball_class_ids))
+        """Run detection on a BGR frame and return ``(players_and_refs, ball_candidates)``."""
+        tracked_person_ids = sorted(
+            set(self.cfg.player_class_ids) | set(self.cfg.referee_class_ids)
+        )
+        target_classes = sorted(set(tracked_person_ids) | set(self.cfg.ball_class_ids))
         if not target_classes:
             return sv.Detections.empty(), sv.Detections.empty()
 
@@ -82,7 +85,7 @@ class Detector:
             else np.ones(len(detections), dtype=np.float32)
         )
 
-        player_mask = np.isin(class_ids, self.cfg.player_class_ids) & (confidences >= self.cfg.conf)
+        player_mask = np.isin(class_ids, tracked_person_ids) & (confidences >= self.cfg.conf)
         if self.cfg.min_player_box_height_px > 0:
             heights = detections.xyxy[:, 3] - detections.xyxy[:, 1]
             player_mask &= heights >= self.cfg.min_player_box_height_px
