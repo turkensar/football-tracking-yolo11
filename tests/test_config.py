@@ -31,16 +31,18 @@ def test_load_default_config() -> None:
     assert isinstance(cfg.annotate, AnnotateConfig)
     assert isinstance(cfg.output, OutputConfig)
 
-    # Required fields specified in PLAN.md T02
+    # Required fields specified in PLAN.md T02 (calibrated in T11)
     assert cfg.detector.weights == "yolo11s.pt"
     assert cfg.detector.conf == pytest.approx(0.25)
-    assert cfg.detector.imgsz == 640
+    assert cfg.detector.imgsz == 1280
     assert cfg.detector.device == "auto"
     assert cfg.detector.player_class_ids == [0]
     assert cfg.detector.ball_class_ids == [32]
     assert cfg.ball.max_gap_frames == 15
     assert cfg.team.n_init_frames == 30
     assert cfg.tracker.frame_rate is None
+    assert cfg.tracker.lost_track_buffer == 60
+    assert cfg.team.exclude_grass is True
 
     # BGR colors are normalized to 3-int tuples
     assert cfg.annotate.unknown_color_bgr == (160, 160, 160)
@@ -156,6 +158,7 @@ def test_tracker_frame_rate_override(tmp_path: Path) -> None:
         "tracker:\n  scene_cut_threshold: 1.5\n",
         "ball:\n  max_gap_frames: -1\n",
         "team:\n  color_space: rgb\n",
+        "team:\n  exclude_grass: 'yes'\n",
         "annotate:\n  unknown_color_bgr: [100, 100]\n",
         "annotate:\n  use_jersey_colors: 'yes'\n",
         "annotate:\n  show_hud: 'yes'\n",

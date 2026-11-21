@@ -12,6 +12,14 @@ from sklearn.cluster import KMeans
 
 from futbolcv.config import TeamConfig
 
+_HEAD_SKIP_RATIO = 0.15
+_MIN_HEAD_SKIP_BOX_H = 12
+_GRASS_HUE_MIN = 38
+_GRASS_HUE_MAX = 85
+_GRASS_SAT_MIN = 45
+_GRASS_VAL_MIN = 45
+_MIN_NON_GRASS_RATIO = 0.15
+
 
 def extract_jersey_color(
     frame: np.ndarray,
@@ -20,11 +28,14 @@ def extract_jersey_color(
     color_space: str = "lab",
     top_ratio: float = 0.5,
     center_crop_ratio: float = 0.5,
+    exclude_grass: bool = True,
 ) -> np.ndarray | None:
-    """Extract the mean jersey color from the upper-half middle region of a player box.
+    """Extract the mean jersey color from the upper-half middle torso region of a player box.
 
-    Returns a 3-element ``float64`` feature vector in Lab or HSV space, or ``None``
-    when the box lies outside the frame or has zero area.
+    When ``exclude_grass`` is enabled, green pitch background pixels (OpenCV HSV Hue
+    in ``[38, 85]``) are excluded before averaging unless fewer than 15% non-grass
+    pixels remain (preserving genuinely green jerseys). Returns a 3-element
+    ``float64`` feature vector in Lab or HSV space, or ``None`` for empty boxes.
     """
     if color_space not in ("lab", "hsv"):
         raise ValueError(f"Unsupported color_space {color_space!r}; expected 'lab' or 'hsv'")
@@ -40,9 +51,10 @@ def extract_jersey_color(
     if box_w <= 0 or box_h <= 0:
         return None
 
+    head_offset = int(round(box_h * _HEAD_SKIP_RATIO)) if box_h >= _MIN_HEAD_SKIP_BOX_H else 0
     upper_h = max(1, int(round(box_h * top_ratio)))
-    crop_y1 = y1
-    crop_y2 = min(y2, y1 + upper_h)
+    crop_y1 = min(y2 - 1, y1 + head_offset)
+    crop_y2 = min(y2, max(crop_y1 + 1, y1 + upper_h))
 
     crop_w = max(1, int(round(box_w * center_crop_ratio)))
     margin_x = (box_w - crop_w) // 2
@@ -55,6 +67,20 @@ def extract_jersey_color(
 
     conversion = cv2.COLOR_BGR2LAB if color_space == "lab" else cv2.COLOR_BGR2HSV
     converted = cv2.cvtColor(crop, conversion).astype(np.float64)
+
+    if exclude_grass:
+        hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+        grass_mask = (
+            (hsv[:, :, 0] >= _GRASS_HUE_MIN)
+            & (hsv[:, :, 0] <= _GRASS_HUE_MAX)
+            & (hsv[:, :, 1] >= _GRASS_SAT_MIN)
+            & (hsv[:, :, 2] >= _GRASS_VAL_MIN)
+        )
+        non_grass = ~grass_mask
+        min_pixels = max(3, int(round(non_grass.size * _MIN_NON_GRASS_RATIO)))
+        if int(non_grass.sum()) >= min_pixels:
+            return converted[non_grass].mean(axis=0)
+
     return converted.mean(axis=(0, 1))
 
 
@@ -115,6 +141,7 @@ class TeamClassifier:
             color_space=self.cfg.color_space,
             top_ratio=self.cfg.jersey_top_ratio,
             center_crop_ratio=self.cfg.jersey_center_crop_ratio,
+            exclude_grass=self.cfg.exclude_grass,
         )
 
     def add_init_frame(self, frame: np.ndarray, dets: sv.Detections) -> int:

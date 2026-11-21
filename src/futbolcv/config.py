@@ -80,8 +80,8 @@ class DetectorConfig:
 
     weights: str = "yolo11s.pt"
     conf: float = 0.25
-    ball_conf: float = 0.15
-    imgsz: int = 640
+    ball_conf: float = 0.12
+    imgsz: int = 1280
     device: str = "auto"
     player_class_ids: list[int] = field(default_factory=lambda: [0])
     ball_class_ids: list[int] = field(default_factory=lambda: [32])
@@ -113,11 +113,11 @@ class TrackerConfig:
     """Multi-object player tracking settings for ByteTrack."""
 
     track_activation_threshold: float = 0.25
-    lost_track_buffer: int = 30
-    minimum_matching_threshold: float = 0.8
+    lost_track_buffer: int = 60
+    minimum_matching_threshold: float = 0.9
     frame_rate: float | None = None
     minimum_consecutive_frames: int = 1
-    scene_cut_threshold: float | None = 0.6
+    scene_cut_threshold: float | None = 0.4
 
     def __post_init__(self) -> None:
         self.track_activation_threshold = _validate_float(
@@ -176,6 +176,7 @@ class TeamConfig:
     outlier_distance_threshold: float = 45.0
     jersey_top_ratio: float = 0.5
     jersey_center_crop_ratio: float = 0.5
+    exclude_grass: bool = True
     random_state: int = 42
 
     def __post_init__(self) -> None:
@@ -205,6 +206,8 @@ class TeamConfig:
             max_value=1.0,
             strict_min=True,
         )
+        if not isinstance(self.exclude_grass, bool):
+            raise ValueError(f"'team.exclude_grass' must be a boolean, got {self.exclude_grass!r}")
         self.random_state = _validate_int("team.random_state", self.random_state, min_value=0)
 
 

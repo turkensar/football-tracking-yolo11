@@ -125,8 +125,8 @@ Durumlar: `TODO` · `DOING` · `REVIEW` (handoff yazıldı) · `FIX` (düzeltme 
 | T07 | Takım sınıflandırma | DONE |
 | T08 | Annotator | DONE |
 | T09 | Exporter | DONE |
-| T10 | Pipeline + CLI | REVIEW |
-| T11 | Uçtan uca deneme + ayar | TODO |
+| T10 | Pipeline + CLI | DONE |
+| T11 | Uçtan uca deneme + ayar | REVIEW |
 | T12 | README + demo GIF | TODO |
 | T13 | (Opsiyonel) Futbol veri setiyle fine-tune | TODO |
 

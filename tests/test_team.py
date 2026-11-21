@@ -67,6 +67,21 @@ def test_extract_jersey_color_focuses_on_upper_middle_region() -> None:
         extract_jersey_color(frame, np.array(box), color_space="rgb")
 
 
+def test_extract_jersey_color_excludes_green_grass_around_thin_torso() -> None:
+    """Grass masking strips green background pixels around a thin black jersey."""
+    frame = np.full((240, 320, 3), PITCH_BGR, dtype=np.uint8)
+    # Thin black stripe (4px wide) inside a 24px wide box surrounded by green pitch
+    box = np.array([100.0, 40.0, 124.0, 120.0], dtype=np.float32)
+    frame[52:85, 110:114] = (15, 15, 15)
+
+    with_mask = extract_jersey_color(frame, box, color_space="lab", exclude_grass=True)
+    without_mask = extract_jersey_color(frame, box, color_space="lab", exclude_grass=False)
+    assert with_mask is not None and without_mask is not None
+    # With grass masking, L channel stays dark (~15); without masking, green pulls L much higher
+    assert with_mask[0] < 30.0
+    assert without_mask[0] > 70.0
+
+
 def test_team_classifier_separates_red_blue_and_flags_yellow_outlier() -> None:
     """Red and blue jerseys form two distinct teams; yellow referee becomes -1."""
     frame = np.full((240, 480, 3), PITCH_BGR, dtype=np.uint8)

@@ -15,6 +15,24 @@ _DARK_TEXT_BGR = (15, 15, 15)
 _HUD_BG_BGR = (20, 20, 20)
 _HUD_ALPHA = 0.55
 _LUMINANCE_THRESHOLD = 145.0
+_CHROMATIC_SAT_MIN = 25
+_OVERLAY_MIN_SAT = 170
+_OVERLAY_MIN_VAL = 170
+
+
+def _boost_overlay_bgr(
+    bgr: tuple[int, int, int],
+    *,
+    min_saturation: int = _OVERLAY_MIN_SAT,
+    min_value: int = _OVERLAY_MIN_VAL,
+) -> tuple[int, int, int]:
+    """Boost muted chromatic jersey colors so overlays stay readable on green grass."""
+    hsv = cv2.cvtColor(np.uint8([[bgr]]), cv2.COLOR_BGR2HSV)[0, 0].astype(int)
+    if hsv[1] >= _CHROMATIC_SAT_MIN:
+        hsv[1] = max(hsv[1], min_saturation)
+        hsv[2] = max(hsv[2], min_value)
+    out = cv2.cvtColor(np.uint8([[hsv]]), cv2.COLOR_HSV2BGR)[0, 0]
+    return (int(out[0]), int(out[1]), int(out[2]))
 
 
 def _text_color_for_bg(bgr: tuple[int, int, int]) -> tuple[int, int, int]:
@@ -47,9 +65,11 @@ def centers_to_bgr(
 
     swatch = clipped.astype(np.uint8).reshape(1, 2, 3)
     bgr_swatch = cv2.cvtColor(swatch, conversion)[0]
+    raw_0 = (int(bgr_swatch[0, 0]), int(bgr_swatch[0, 1]), int(bgr_swatch[0, 2]))
+    raw_1 = (int(bgr_swatch[1, 0]), int(bgr_swatch[1, 1]), int(bgr_swatch[1, 2]))
     return {
-        0: (int(bgr_swatch[0, 0]), int(bgr_swatch[0, 1]), int(bgr_swatch[0, 2])),
-        1: (int(bgr_swatch[1, 0]), int(bgr_swatch[1, 1]), int(bgr_swatch[1, 2])),
+        0: _boost_overlay_bgr(raw_0),
+        1: _boost_overlay_bgr(raw_1),
     }
 
 

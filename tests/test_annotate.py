@@ -166,3 +166,23 @@ def test_centers_to_bgr_and_use_jersey_colors() -> None:
         centers_to_bgr(np.zeros((3, 3)))
     with pytest.raises(ValueError, match="color_space"):
         centers_to_bgr(centers_lab, color_space="rgb")
+
+
+def test_centers_to_bgr_boosts_muted_chromatic_colors_but_keeps_white() -> None:
+    """Muted chromatic jerseys get boosted to vivid HSV floors; white stays achromatic."""
+    muted_red_bgr = (60, 75, 125)  # low saturation/value muted maroon
+    white_bgr = (230, 230, 230)  # achromatic white jersey
+    centers_lab = np.vstack(
+        [
+            cv2.cvtColor(np.uint8([[muted_red_bgr]]), cv2.COLOR_BGR2LAB)[0, 0],
+            cv2.cvtColor(np.uint8([[white_bgr]]), cv2.COLOR_BGR2LAB)[0, 0],
+        ]
+    ).astype(np.float64)
+
+    converted = centers_to_bgr(centers_lab, color_space="lab")
+    hsv_0 = cv2.cvtColor(np.uint8([[converted[0]]]), cv2.COLOR_BGR2HSV)[0, 0]
+    hsv_1 = cv2.cvtColor(np.uint8([[converted[1]]]), cv2.COLOR_BGR2HSV)[0, 0]
+
+    assert int(hsv_0[1]) >= 165
+    assert int(hsv_0[2]) >= 165
+    assert int(hsv_1[1]) < 25  # white remains achromatic

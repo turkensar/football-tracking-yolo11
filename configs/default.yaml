@@ -4,8 +4,8 @@
 detector:
   weights: "yolo11s.pt"
   conf: 0.25
-  ball_conf: 0.15
-  imgsz: 640
+  ball_conf: 0.12
+  imgsz: 1280
   device: "auto"
   player_class_ids: [0]
   ball_class_ids: [32]
@@ -13,11 +13,11 @@ detector:
 
 tracker:
   track_activation_threshold: 0.25
-  lost_track_buffer: 30
-  minimum_matching_threshold: 0.8
+  lost_track_buffer: 60
+  minimum_matching_threshold: 0.9
   frame_rate: null
   minimum_consecutive_frames: 1
-  scene_cut_threshold: 0.6
+  scene_cut_threshold: 0.4
 
 ball:
   max_gap_frames: 15
@@ -30,6 +30,7 @@ team:
   outlier_distance_threshold: 45.0
   jersey_top_ratio: 0.5
   jersey_center_crop_ratio: 0.5
+  exclude_grass: true
   random_state: 42
 
 annotate:
