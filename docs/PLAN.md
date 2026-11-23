@@ -130,8 +130,8 @@ Durumlar: `TODO` · `DOING` · `REVIEW` (handoff yazıldı) · `FIX` (düzeltme 
 | T12 | README + demo GIF | DONE |
 | T13a | Colab eğitim not defteri | DONE |
 | T13b | Futbol modeli için config + hakem sınıfı | DONE |
-| T13c | (Kullanıcı Colab'da eğitir) → karşılaştırma + README | REVIEW |
-| T13d | Top takipçisi: sabit yanlış pozitif kilidini önleme | TODO |
+| T13c | (Kullanıcı Colab'da eğitir) → karşılaştırma + README | DONE |
+| T13d | Top takipçisi: sabit yanlış pozitif kilidini önleme | REVIEW |
 
 Her görevde genel kabul kriterleri (aşağıda tekrar yazılmaz):
 - `ruff check .` ve `ruff format --check .` temiz.

@@ -71,6 +71,10 @@ def test_load_default_config() -> None:
     assert cfg.detector.player_class_ids == [0]
     assert cfg.detector.ball_class_ids == [32]
     assert cfg.ball.max_gap_frames == 15
+    assert cfg.ball.distance_weight == pytest.approx(0.3)
+    assert cfg.ball.static_radius_px == pytest.approx(5.0)
+    assert cfg.ball.static_frames == 25
+    assert cfg.ball.reacquire_conf == pytest.approx(0.5)
     assert cfg.team.n_init_frames == 30
     assert cfg.tracker.frame_rate is None
     assert cfg.tracker.lost_track_buffer == 60
@@ -190,6 +194,10 @@ def test_tracker_frame_rate_override(tmp_path: Path) -> None:
         "tracker:\n  scene_cut_threshold: 0\n",
         "tracker:\n  scene_cut_threshold: 1.5\n",
         "ball:\n  max_gap_frames: -1\n",
+        "ball:\n  distance_weight: -0.1\n",
+        "ball:\n  static_radius_px: 0\n",
+        "ball:\n  static_frames: 0\n",
+        "ball:\n  reacquire_conf: 1.5\n",
         "team:\n  color_space: rgb\n",
         "team:\n  exclude_grass: 'yes'\n",
         "annotate:\n  unknown_color_bgr: [100, 100]\n",

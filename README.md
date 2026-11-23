@@ -224,9 +224,9 @@ Hazır COCO `yolo11s.pt` modeli geniş yayın açısında küçük topu sık ka�
 
 | Metrik | COCO (`configs/default.yaml`) | Fine-Tune (`configs/football.yaml`) | Yorum |
 |---|---:|---:|---|
-| **Gerçek top tespiti (kare kare doğrulanmış)** | `≈ 40.9%`* | **`≥ 75.7%`** | Fine-tune modelde penaltı hazırlığı (`276/276`) + gol sonrası hareketli top (`135/243`) koordinatla ayrıştırıldı; *COCO oranı elle doğrulanmadı, küçük bir yanlış pozitif payı içerebilir.* |
-| `ball.detected_ratio` | `40.9%` (`222/543`) | `95.0%` (`516/543`) *(penaltı noktası yanlış pozitifi dahil)* | Gol sonrası boş kalan boyalı penaltı noktası `ball` olarak algılandığı için ham oran gerçek toptan yüksektir (bkz. Bilinen Kısıtlar). |
-| `ball.visible_ratio` (enterpolasyon dahil) | `63.0%` (`342/543`) | `100.0%` (`543/543`) *(penaltı noktası yanlış pozitifi dahil)* | 15 karelik doğrusal enterpolasyon sonrası oran; penaltı noktası kilidini de içerir. |
+| **Gerçek top (takipçi çıktısı, nokta dışı — ham / görünür)** | `39.6%` / `59.5%` (`215` / `323`) | **`75.3%` / `78.8%`** (`409` / `428`) | Penaltı hazırlığı (`276/276`) + şut uçuşu + orta saha (`103/113`); sabit-nokta kilidi önleme (`BallTracker`) ile orta saha gerçek top takibi `20 → 103/113` kareye çıktı (COCO'da 0 regresyon). |
+| `ball.detected_ratio` | `40.9%` (`222/543`) | `96.5%` (`524/543`) *(penaltı noktası yanlış pozitifi dahil)* | Top ağların içindeyken (`f=300–429`) tek aday kalan boyalı penaltı noktası ham orana dahildir (bkz. Bilinen Kısıtlar). |
+| `ball.visible_ratio` (enterpolasyon dahil) | `63.0%` (`342/543`) | `100.0%` (`543/543`) *(penaltı noktası yanlış pozitifi dahil)* | 15 karelik doğrusal enterpolasyon sonrası oran; `f=300–429` arasındaki tek-aday penaltı noktası karelerini de içerir. |
 | `unique_player_ids` | `48` | `64` | Ortalama oyuncu tespiti `13.3 → 19.1 / kare` arttı ve saha dışı fotoğrafçılar elendi; ancak ID parçalanması da arttı — ByteTrack eşikleri COCO modeline göre ayarlandı, fine-tune model için yeniden ayarlanmadı. |
 | `player_ids_by_team["-1"]` | `9` | `16` | Açık `referee` sınıfı (`referee_class_ids: [3]`) renk eşiğine gerek kalmadan anında `-1` etiketlenir. |
 | `pass1_fps` (`--max-frames 300`, CPU) | `2.38` | `2.45` | Aynı mimari (`yolo11s`, `imgsz 1280`); hız eşdeğer (fark ölçüm gürültüsü içinde). |
@@ -241,7 +241,7 @@ Hazır COCO `yolo11s.pt` modeli geniş yayın açısında küçük topu sık ka�
 ## Bilinen Kısıtlar
 
 1. **Örtüşmede ID değişimi ve takım etiketi gecikmesi:** ByteTrack yalnızca hareket (Kalman) ve IoU kullandığından ceza sahası kalabalığında ID değişimleri oluşur (22 oyuncu yerine 543 karede COCO'da 48, fine-tune modelde 64 benzersiz ID). Bir oyuncu veya (COCO modunda) hakem başka birinin ID'sini devraldığında kayan çoğunluk oyu penceresi (`vote_window: 15`) eski takımı birkaç kare taşır — **ID değişiminde takım etiketi birkaç kare gecikmeli düzelir** (ör. COCO Kare 500'de siyah formalı hakem `21` geçici olarak bordo rozet taşıyor; `football.yaml` modelinde hakem `referee` sınıfıyla tespit edildiği karelerde anında `-1` olur, ancak hakem nadiren `player` sınıfıyla algılandığında aynı gecikme görülebilir).
-2. **Boyalı penaltı noktası yanlış pozitifi ve top kilidi (fine-tune):** Gol sonrasında penaltı noktası boş kaldığında fine-tune model beyaz penaltı noktasını `ball` (`conf ≈ 0.50–0.76`) olarak tespit edebiliyor. `BallTracker.select()` önceki konuma en yakın adayı seçtiği için orta sahada yuvarlanan gerçek top daha yüksek güvenle (`conf ≈ 0.70–0.77`) tespit edilse bile takipçi penaltı noktası kaybolana dek (~100 kare) orada kilitli kalabiliyor. Bu nedenle `football.yaml` tablosundaki `%95.0` ham top oranının tamamı gerçek top değildir (gerçek top ham oranı `%75.7+` civarındadır).
+2. **Boyalı penaltı noktası yanlış pozitifi (fine-tune — kısmen çözüldü):** `BallTracker` içine eklenen sabit nokta hafızası ve yeniden kilitlenme (`reacquire_conf`) kuralı, orta sahada hareketli gerçek top belirdiği anda (`f=430–542`) penaltı noktası kilidini kırarak o bölümdeki kilitli kareleri **`90 → 10` (`-89%`)** indirdi ve gerçek orta saha top takibini **`20 → 103/113`** kareye çıkardı. Ancak top ağların içinde/kalecinin elinde tamamen görünmezken (`f=300–429`) sahada başka hareketli aday kalmadığı için duran top/penaltı hazırlığını koruyan geri-düşüş kuralı bu aralıkta (~105 kare) boyalı penaltı noktasını seçmeye devam eder; kökten çözüm için eğitim setine boş penaltı noktası negatif örnekleri eklenmelidir.
 3. **Hazır COCO modeliyle top tespiti:** `yolo11s.pt` futbol özelinde eğitilmediğinden hızlı şut ve hareket bulanıklığında topu kaçırır (`%40.9` ham tespit, enterpolasyonla `%63.0`).
 4. **Saha dışı tespitler ve tripod:** Fine-tune model kenardaki fotoğrafçıları büyük ölçüde elese de her iki modelde saha üstündeki kamera tripodu bazı açılarda `person`/`player` olarak yakalanabiliyor.
 5. **Sahne kesmesi algılama:** Test klibi tek kesintisiz kamera çekimi olduğu için `scene_cut_threshold: 0.4` yalnızca normal kamera panında yanlış pozitif üretmediği (`max=0.069`) yönünde test edildi; **kesme algılama sentetik testle doğrulandı, gerçek kesme içeren klipte doğrulanmadı.**
@@ -251,9 +251,9 @@ Hazır COCO `yolo11s.pt` modeli geniş yayın açısında küçük topu sık ka�
 
 ## Sonraki Adımlar (Future Work)
 
-- `BallTracker.select()` içine mesafe + güven + durağan konum (boyalı penaltı noktası gibi statik FP) reddi ekleme
 - `supervision 0.30.x`'te deprecated olan `sv.ByteTrack` yerine Roboflow `trackers` paketine geçiş
-- Daha geniş/çeşitli futbol veri setiyle (`ball` AP50'yi artırmak için) fine-tune ve negatif (boş saha/penaltı noktası) örnekleri ekleme
+- Daha geniş/çeşitli futbol veri setiyle (`ball` AP50'yi artırmak için) fine-tune ve boş penaltı noktası negatif örnekleri ekleme
+- Fine-tune modelin yüksek oyuncu tespit yoğunluğuna göre ByteTrack eşiklerini yeniden kalibre etme
 - Saha anahtar noktalarıyla homografi ve 2D kuşbakışı taktik radar
 - Saha maskesiyle tripod/kenar görevli filtreleme ve Re-ID öznitelikleriyle ID değişimi azaltma
 - Oyuncu hızı, kat edilen mesafe, top sahipliği yüzdesi ve Streamlit etkileşimli arayüzü

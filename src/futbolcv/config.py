@@ -158,15 +158,29 @@ class TrackerConfig:
 
 @dataclass
 class BallConfig:
-    """Ball candidate selection and temporal interpolation settings."""
+    """Ball candidate selection, static-spot suppression, and temporal interpolation settings."""
 
     max_gap_frames: int = 15
     max_jump_px: float = 150.0
+    distance_weight: float = 0.3
+    static_radius_px: float = 5.0
+    static_frames: int = 25
+    reacquire_conf: float = 0.5
 
     def __post_init__(self) -> None:
         self.max_gap_frames = _validate_int("ball.max_gap_frames", self.max_gap_frames, min_value=0)
         self.max_jump_px = _validate_float(
             "ball.max_jump_px", self.max_jump_px, min_value=0.0, strict_min=True
+        )
+        self.distance_weight = _validate_float(
+            "ball.distance_weight", self.distance_weight, min_value=0.0
+        )
+        self.static_radius_px = _validate_float(
+            "ball.static_radius_px", self.static_radius_px, min_value=0.0, strict_min=True
+        )
+        self.static_frames = _validate_int("ball.static_frames", self.static_frames, min_value=1)
+        self.reacquire_conf = _validate_float(
+            "ball.reacquire_conf", self.reacquire_conf, min_value=0.0, max_value=1.0
         )
 
 

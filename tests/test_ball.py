@@ -230,3 +230,112 @@ def test_frame_result_contract() -> None:
     assert res.frame_idx == 7
     assert len(res.players) == 0
     assert res.ball is ball
+
+
+def test_penalty_spot_static_lock_switches_to_moving_ball_within_3_frames() -> None:
+    """Synthetic penalty-spot test: switches from static spot to moving ball in <= 3 frames."""
+    tracker = BallTracker(
+        BallConfig(
+            max_jump_px=150.0,
+            distance_weight=0.3,
+            static_radius_px=5.0,
+            static_frames=25,
+            reacquire_conf=0.5,
+        )
+    )
+    spot_box = [500.0, 500.0, 512.0, 512.0]
+
+    # Frames 0..49: single candidate sitting on the penalty spot -> selected on every frame.
+    for frame_idx in range(50):
+        state = tracker.update(_make_candidates([spot_box], [0.70]), frame_idx=frame_idx)
+        assert state.xyxy is not None
+        assert np.allclose(state.xyxy, np.array(spot_box, dtype=np.float32))
+
+    # Frames 50..79: spot stays at (500, 500) with conf=0.60, real ball moves right at 20 px/frame.
+    switch_frame: int | None = None
+    for frame_idx in range(50, 80):
+        step = frame_idx - 49
+        real_box = [500.0 + step * 20.0, 500.0, 512.0 + step * 20.0, 512.0]
+        state = tracker.update(
+            _make_candidates([spot_box, real_box], [0.60, 0.75]),
+            frame_idx=frame_idx,
+        )
+        assert state.xyxy is not None
+        on_real = bool(np.allclose(state.xyxy, np.array(real_box, dtype=np.float32)))
+        if switch_frame is None and on_real:
+            switch_frame = frame_idx
+        if switch_frame is not None:
+            assert on_real, f"Dropped back to spot at frame {frame_idx}"
+
+    assert switch_frame is not None
+    assert switch_frame <= 52  # Switched within <= 3 frames (50, 51, or 52)
+
+
+def test_reacquire_breaks_static_lock_when_moving_ball_is_outside_jump_gate() -> None:
+    """Out-of-gate moving candidate >= reacquire_conf breaks a static-spot lock; weak FP cannot."""
+    tracker = BallTracker(
+        BallConfig(
+            max_jump_px=150.0,
+            static_radius_px=5.0,
+            static_frames=25,
+            reacquire_conf=0.5,
+        )
+    )
+    spot_box = [500.0, 500.0, 512.0, 512.0]
+
+    # Establish lock on static spot over 30 frames
+    for frame_idx in range(30):
+        state = tracker.update(_make_candidates([spot_box], [0.68]), frame_idx=frame_idx)
+        assert state.xyxy is not None
+
+    # Frame 30: far moving candidate below reacquire_conf (0.35 < 0.50) must NOT steal lock
+    weak_far_box = [1100.0, 500.0, 1112.0, 512.0]
+    s30 = tracker.update(_make_candidates([spot_box, weak_far_box], [0.65, 0.35]), frame_idx=30)
+    assert s30.xyxy is not None
+    assert np.allclose(s30.xyxy, np.array(spot_box, dtype=np.float32))
+
+    # Frame 31: far moving real ball >= reacquire_conf (0.74 >= 0.50) breaks lock immediately
+    real_far_box = [1150.0, 510.0, 1162.0, 522.0]
+    s31 = tracker.update(_make_candidates([spot_box, real_far_box], [0.65, 0.74]), frame_idx=31)
+    assert s31.xyxy is not None
+    assert np.allclose(s31.xyxy, np.array(real_far_box, dtype=np.float32))
+
+    # Frame 32: continues tracking the moving real ball smoothly
+    next_real_box = [1180.0, 512.0, 1192.0, 524.0]
+    s32 = tracker.update(_make_candidates([spot_box, next_real_box], [0.65, 0.72]), frame_idx=32)
+    assert s32.xyxy is not None
+    assert np.allclose(s32.xyxy, np.array(next_real_box, dtype=np.float32))
+
+
+def test_stationary_single_ball_stays_tracked_for_set_piece() -> None:
+    """A single stationary ball (pre-penalty / corner) remains selected on every frame."""
+    tracker = BallTracker(BallConfig(static_radius_px=5.0, static_frames=25))
+    ball_box = [320.0, 410.0, 332.0, 422.0]
+
+    for frame_idx in range(60):
+        state = tracker.update(_make_candidates([ball_box], [0.78]), frame_idx=frame_idx)
+        assert state.xyxy is not None
+        assert np.allclose(state.xyxy, np.array(ball_box, dtype=np.float32))
+
+
+def test_static_spot_forgotten_after_absence_and_reset() -> None:
+    """Static spots expire after > static_frames of absence and clear immediately on reset()."""
+    tracker = BallTracker(BallConfig(static_radius_px=5.0, static_frames=10, reacquire_conf=0.5))
+    spot_box = [100.0, 100.0, 112.0, 112.0]
+
+    for frame_idx in range(12):
+        tracker.update(_make_candidates([spot_box], [0.70]), frame_idx=frame_idx)
+    assert tracker._is_on_static_spot()
+
+    # Absent for 11 frames (> static_frames=10) -> static memory pruned
+    tracker.update(sv.Detections.empty(), frame_idx=23)
+    assert tracker._static_spots == []
+
+    # Re-establish and verify reset() clears all state
+    for frame_idx in range(24, 36):
+        tracker.update(_make_candidates([spot_box], [0.70]), frame_idx=frame_idx)
+    assert tracker._is_on_static_spot()
+
+    tracker.reset()
+    assert tracker._static_spots == []
+    assert not tracker._is_on_static_spot()
