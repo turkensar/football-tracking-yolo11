@@ -339,3 +339,43 @@ def test_static_spot_forgotten_after_absence_and_reset() -> None:
     tracker.reset()
     assert tracker._static_spots == []
     assert not tracker._is_on_static_spot()
+
+
+def test_abandoned_static_spot_returns_none_when_only_spot_remains() -> None:
+    """After leaving a static spot for a moving ball, sole spot detections return None."""
+    tracker = BallTracker(
+        BallConfig(
+            max_jump_px=150.0,
+            distance_weight=0.3,
+            static_radius_px=5.0,
+            static_frames=25,
+            reacquire_conf=0.5,
+        )
+    )
+    spot_box = [500.0, 500.0, 512.0, 512.0]
+
+    # Frames 0..49: only the stationary ball on the spot -> selected on every frame.
+    for frame_idx in range(50):
+        state = tracker.update(_make_candidates([spot_box], [0.75]), frame_idx=frame_idx)
+        assert state.xyxy is not None
+        assert np.allclose(state.xyxy, np.array(spot_box, dtype=np.float32))
+
+    # Frames 50..59: real ball kicks away from the spot -> tracked cleanly; spot is abandoned.
+    for frame_idx in range(50, 60):
+        step = frame_idx - 49
+        real_box = [500.0 + step * 25.0, 500.0, 512.0 + step * 25.0, 512.0]
+        state = tracker.update(
+            _make_candidates([spot_box, real_box], [0.65, 0.80]), frame_idx=frame_idx
+        )
+        assert state.xyxy is not None
+        assert np.allclose(state.xyxy, np.array(real_box, dtype=np.float32))
+
+    # Frames 60..99: real ball disappears (e.g. in net); only the abandoned spot remains -> None.
+    for frame_idx in range(60, 100):
+        state = tracker.update(_make_candidates([spot_box], [0.70]), frame_idx=frame_idx)
+        assert state.xyxy is None, f"Expected None at frame {frame_idx}, got {state.xyxy}"
+
+    # After reset(), the abandoned memory is cleared and a new stationary ball is accepted again.
+    tracker.reset()
+    after_reset = tracker.update(_make_candidates([spot_box], [0.75]), frame_idx=100)
+    assert after_reset.xyxy is not None

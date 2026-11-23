@@ -29,13 +29,21 @@ def _clone_state(state: BallState) -> BallState:
     )
 
 
-@dataclass
+@dataclass(eq=False)
 class _StaticSpot:
-    """Tracks a persistent low-motion candidate location (e.g. painted penalty spot)."""
+    """Tracks a persistent low-motion candidate location (e.g. painted penalty spot).
+
+    Once the tracker leaves an established static spot for a genuinely moving ball,
+    the spot is marked ``abandoned=True`` and excluded from fallback selection until
+    it expires after ``static_frames`` frames of absence (or ``reset()``). Side effect:
+    a ball placed back on the exact same spot (e.g. a retaken penalty) is ignored
+    until that expiry window elapses.
+    """
 
     center: np.ndarray
     hits: int
     last_seen: int
+    abandoned: bool = False
 
 
 class BallTracker:
@@ -45,38 +53,48 @@ class BallTracker:
         self.cfg = cfg
         self._last_xyxy: np.ndarray | None = None
         self._last_frame_idx: int | None = None
-        self._last_was_static: bool = False
+        self._last_spot: _StaticSpot | None = None
         self._step_counter: int = 0
         self._static_spots: list[_StaticSpot] = []
 
     def reset(self) -> None:
-        """Clear previous ball position history and tracked static spots."""
+        """Clear previous ball position history and tracked/abandoned static spots."""
         self._last_xyxy = None
         self._last_frame_idx = None
-        self._last_was_static = False
+        self._last_spot = None
         self._step_counter = 0
         self._static_spots.clear()
 
-    def _update_static_spots(self, centers: np.ndarray, current_idx: int) -> np.ndarray:
-        """Update persistent spot memory and return a boolean mask of static candidates."""
-        # Forget spots that have not been seen for more than static_frames frames.
+    def _update_static_spots(self, centers: np.ndarray, current_idx: int) -> list[_StaticSpot]:
+        """Update persistent spot memory and return the matched spot for each candidate."""
+        # Forget spots (including abandoned ones) unseen for more than static_frames frames.
         self._static_spots = [
             spot
             for spot in self._static_spots
             if (current_idx - spot.last_seen) <= self.cfg.static_frames
         ]
+        if self._last_spot is not None and not any(
+            spot is self._last_spot for spot in self._static_spots
+        ):
+            self._last_spot = None
 
         count = len(centers)
-        static_mask = np.zeros(count, dtype=bool)
         if count == 0:
-            return static_mask
+            return []
 
-        # Prioritize established spots so they keep claiming their own repeated detections.
-        self._static_spots.sort(key=lambda s: -s.hits)
+        # Prioritize abandoned spots, then established spots by hit count.
+        self._static_spots.sort(key=lambda s: (not s.abandoned, -s.hits))
+        matched_spots: list[_StaticSpot | None] = [None] * count
         matched_cands: set[int] = set()
-        radius = self.cfg.static_radius_px
 
         for spot in self._static_spots:
+            dt = max(1, current_idx - spot.last_seen)
+            # Abandoned spots allow per-frame camera pan/tilt across brief occlusions.
+            radius = (
+                min(self.cfg.static_radius_px * dt, self.cfg.max_jump_px * 0.5)
+                if spot.abandoned
+                else self.cfg.static_radius_px
+            )
             best_idx: int | None = None
             best_dist = float("inf")
             for idx in range(count):
@@ -91,20 +109,21 @@ class BallTracker:
                 spot.hits += 1
                 spot.last_seen = current_idx
                 spot.center = centers[best_idx].copy()
-                if spot.hits >= self.cfg.static_frames:
-                    static_mask[best_idx] = True
+                matched_spots[best_idx] = spot
 
+        resolved: list[_StaticSpot] = []
         for idx in range(count):
-            if idx not in matched_cands:
-                self._static_spots.append(
-                    _StaticSpot(center=centers[idx].copy(), hits=1, last_seen=current_idx)
-                )
+            matched = matched_spots[idx]
+            if matched is None:
+                matched = _StaticSpot(center=centers[idx].copy(), hits=1, last_seen=current_idx)
+                self._static_spots.append(matched)
+            resolved.append(matched)
 
-        return static_mask
+        return resolved
 
     def _is_on_static_spot(self) -> bool:
         """Return True if the current track sits on an established static spot."""
-        if self._last_was_static:
+        if self._last_spot is not None and self._last_spot.hits >= self.cfg.static_frames:
             return True
         if self._last_xyxy is None:
             return False
@@ -124,6 +143,7 @@ class BallTracker:
         *,
         frames_since_last: int = 1,
         static_mask: np.ndarray | None = None,
+        abandoned_mask: np.ndarray | None = None,
         on_static_spot: bool = False,
         use_score: bool = False,
     ) -> int | None:
@@ -148,7 +168,7 @@ class BallTracker:
         )
 
         # Preserve original proximity-first contract when called without T13d scoring/static info.
-        if not use_score and static_mask is None:
+        if not use_score and static_mask is None and abandoned_mask is None:
             if prev_xyxy is None:
                 return int(np.argmax(confidences))
 
@@ -172,9 +192,18 @@ class BallTracker:
             if static_mask is not None
             else np.zeros(count, dtype=bool)
         )
+        is_abandoned = (
+            np.asarray(abandoned_mask, dtype=bool)
+            if abandoned_mask is not None
+            else np.zeros(count, dtype=bool)
+        )
         if len(is_static) != count:
             raise ValueError(
                 f"'static_mask' length ({len(is_static)}) must match candidates ({count})"
+            )
+        if len(is_abandoned) != count:
+            raise ValueError(
+                f"'abandoned_mask' length ({len(is_abandoned)}) must match candidates ({count})"
             )
 
         allowed_jump = self.cfg.max_jump_px * frames_since_last
@@ -200,7 +229,8 @@ class BallTracker:
                 key=lambda i: (float(scores[i]), -float(distances[i]), float(confidences[i])),
             )
 
-        moving_indices = [i for i in range(count) if not is_static[i]]
+        # Abandoned spots are never eligible as moving or fallback candidates.
+        moving_indices = [i for i in range(count) if not is_static[i] and not is_abandoned[i]]
         moving_in_gate = [i for i in moving_indices if in_gate[i]]
 
         # (a) Prefer moving (non-static) candidates inside the jump gate by combined score.
@@ -218,8 +248,10 @@ class BallTracker:
                     key=lambda i: (float(confidences[i]), -float(distances[i])),
                 )
 
-        # (c) Fall back to static candidates inside the jump gate (preserves stationary set pieces).
-        static_in_gate = [i for i in range(count) if is_static[i] and in_gate[i]]
+        # (c) Fall back to non-abandoned static candidates inside the gate (keeps set pieces).
+        static_in_gate = [
+            i for i in range(count) if is_static[i] and not is_abandoned[i] and in_gate[i]
+        ]
         if static_in_gate:
             return _best_by_score(static_in_gate)
 
@@ -232,22 +264,25 @@ class BallTracker:
         *,
         frames_since_last: int = 1,
         static_mask: np.ndarray | None = None,
+        abandoned_mask: np.ndarray | None = None,
         on_static_spot: bool = False,
         use_score: bool = False,
     ) -> BallState:
         """Pick one ball candidate using proximity/score gating and optional static suppression.
 
-        When called with default keyword arguments (``static_mask=None, use_score=False``),
-        picks the closest candidate to ``prev_xyxy`` (breaking ties by confidence) within
-        ``cfg.max_jump_px * frames_since_last``, or highest confidence when ``prev_xyxy`` is
-        ``None``. When ``use_score=True`` (used by ``update()``), applies combined
-        ``conf - distance_weight * (dist / allowed_jump)`` scoring and static-spot recovery.
+        When called with default keyword arguments (``static_mask=None, abandoned_mask=None,
+        use_score=False``), picks the closest candidate to ``prev_xyxy`` (breaking ties by
+        confidence) within ``cfg.max_jump_px * frames_since_last``, or highest confidence when
+        ``prev_xyxy`` is ``None``. When ``use_score=True`` (used by ``update()``), applies
+        combined ``conf - distance_weight * (dist / allowed_jump)`` scoring and static-spot
+        recovery while ignoring abandoned static spots.
         """
         best_idx = self._select_index(
             candidates,
             prev_xyxy,
             frames_since_last=frames_since_last,
             static_mask=static_mask,
+            abandoned_mask=abandoned_mask,
             on_static_spot=on_static_spot,
             use_score=use_score,
         )
@@ -262,7 +297,7 @@ class BallTracker:
         )
 
     def update(self, candidates: sv.Detections, *, frame_idx: int | None = None) -> BallState:
-        """Stateful ball selection with static-spot memory and jump/reacquire gating."""
+        """Stateful ball selection with static-spot memory, abandonment, and jump gating."""
         current_idx = self._step_counter if frame_idx is None else frame_idx
         self._step_counter += 1
 
@@ -276,7 +311,11 @@ class BallTracker:
         else:
             centers = np.empty((0, 2), dtype=np.float64)
 
-        static_mask = self._update_static_spots(centers, current_idx)
+        matched_spots = self._update_static_spots(centers, current_idx)
+        static_mask = np.array(
+            [spot.hits >= self.cfg.static_frames for spot in matched_spots], dtype=bool
+        )
+        abandoned_mask = np.array([spot.abandoned for spot in matched_spots], dtype=bool)
         on_static_spot = self._is_on_static_spot()
 
         if self._last_xyxy is None or self._last_frame_idx is None:
@@ -289,11 +328,19 @@ class BallTracker:
             self._last_xyxy,
             frames_since_last=frames_since_last,
             static_mask=static_mask,
+            abandoned_mask=abandoned_mask,
             on_static_spot=on_static_spot,
             use_score=True,
         )
         if best_idx is None:
             return BallState(xyxy=None, conf=0.0, interpolated=False)
+
+        # When transitioning from an established static spot to a moving ball that genuinely
+        # departed (> 2 * static_radius_px, ignoring tiny camera jitter), abandon that spot.
+        if on_static_spot and not static_mask[best_idx] and self._last_spot is not None:
+            departure = float(np.linalg.norm(centers[best_idx] - self._last_spot.center))
+            if departure > 2.0 * self.cfg.static_radius_px:
+                self._last_spot.abandoned = True
 
         conf = float(candidates.confidence[best_idx]) if candidates.confidence is not None else 0.0
         state = BallState(
@@ -303,7 +350,7 @@ class BallTracker:
         )
         self._last_xyxy = state.xyxy.copy()
         self._last_frame_idx = current_idx
-        self._last_was_static = bool(static_mask[best_idx])
+        self._last_spot = matched_spots[best_idx]
         return state
 
 
