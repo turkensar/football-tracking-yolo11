@@ -131,6 +131,7 @@ Durumlar: `TODO` · `DOING` · `REVIEW` (handoff yazıldı) · `FIX` (düzeltme 
 | T13a | Colab eğitim not defteri | DONE |
 | T13b | Futbol modeli için config + hakem sınıfı | DONE |
 | T13c | (Kullanıcı Colab'da eğitir) → karşılaştırma + README | REVIEW |
+| T13d | Top takipçisi: sabit yanlış pozitif kilidini önleme | TODO |
 
 Her görevde genel kabul kriterleri (aşağıda tekrar yazılmaz):
 - `ruff check .` ve `ruff format --check .` temiz.
@@ -230,6 +231,25 @@ Bu makinede GPU olmadığı için eğitim Google Colab'da (ücretsiz T4) yapıl�
 - README: eğitim bölümü (veri seti + lisans atfı, Colab rozeti, eğitim parametreleri, mAP tablosu) ve COCO-futbol karşılaştırma tablosu. Demo GIF daha iyiyse yeniden üretilir.
 - Ağırlık dosyası repoya girmez. README'de "GitHub Release'ten indirin" talimatı ve indirme linki için yer tutucu bulunur (release'i kullanıcı oluşturur).
 - **Kabul:** Top görünürlüğü COCO modeline göre aynı klipte artar (artmazsa dürüstçe raporlanır ve neden analiz edilir). Ağırlık dosyası git'te yok.
+
+#### T13d — Top takipçisinin sabit yanlış pozitife kilitlenmesini önleme
+**Sorun (T13c'de gözlendi):** Gol sonrası boyalı penaltı noktası `ball` olarak tespit ediliyor. Takipçi oraya kilitlendiği için her karede `frames_since_last=1` oluyor ve sıçrama sınırı 150 px'de kalıyor. Orta sahadaki gerçek top bu sınırın dışında kaldığı için her karede reddediliyor; yani kilidin asıl sebebi **mesafe kapısının sabit bir noktaya bağlanması**. Gol sonrası yaklaşık 100 kare boyunca top işareti penaltı noktasında duruyor.
+
+**Tasarım (`ball.py`, durumlu `update()` üzerinden):**
+1. **Sabit nokta hafızası:** Aday merkezleri `static_radius_px` (ör. 4 px) içinde `static_frames` (ör. 25 kare ≈ 1 sn) boyunca aynı yerde kalıyorsa o konum "sabit nokta" olarak işaretlenir. Bu konuma yakın adaylar **sabit aday** sayılır. (Bir sabit nokta, o konumda belirli bir süre aday görülmezse unutulur.)
+2. **Seçim sırası:**
+   - (a) Hareketli (sabit olmayan) adaylar arasında, sıçrama kapısı içindekilerden en yüksek **puanlı** olan seçilir. Puan: `conf − distance_weight × (mesafe / izin_verilen_sıçrama)`.
+   - (b) Kapı içinde hareketli aday yoksa, **ve** mevcut takip sabit bir nokta üzerindeyse, **ve** kapı dışında `conf ≥ reacquire_conf` olan hareketli bir aday varsa → takip o adaya **yeniden kilitlenir** (en yüksek güvenli olan).
+   - (c) Hiç hareketli aday yoksa sabit adaylar normal kapı ve puan kuralıyla değerlendirilir. Böylece penaltı öncesinde noktada duran gerçek top, tek aday olduğu sürece takip edilmeye devam eder.
+3. Yeni config alanları (`BallConfig`, hepsi doğrulamalı, `default.yaml` ile senkron): `distance_weight` (ör. 0.3), `static_radius_px` (4.0), `static_frames` (25), `reacquire_conf` (0.5). Kodda sabit sayı kalmayacak.
+4. `select()` mevcut testleri bozmayacak şekilde kalsın (gerekirse ek parametre alabilir). Mevcut T06 testleri geçmeye devam etmeli.
+
+**Kabul:**
+- **Sentetik "penaltı noktası" testi:** 0–49. karelerde tek aday noktada duruyor (conf 0.7) → seçiliyor. 50. kareden itibaren nokta adayı conf 0.6 ile aynı yerde kalıyor, gerçek top conf 0.75 ile 20 px/kare uzaklaşıyor → takipçi **en geç 3 kare içinde** gerçek topa geçiyor ve sonuna kadar onda kalıyor.
+- Tek aday sabit olduğunda (duran top, korner) hâlâ seçiliyor.
+- Hareketli tek top için davranış değişmiyor (mevcut testler).
+- **Gerçek klip (football.yaml, tam klip):** Gol sonrası bölümde (~kare 300–542) top işaretinin penaltı noktası çevresinde (merkezden ≤ 15 px) kaldığı kare sayısı önce/sonra raporlanacak. Hedef: büyük ölçüde azalması. Elle doğrulanmış "gerçek top" oranı yeniden hesaplanacak. COCO `default.yaml` sonuçları belirgin şekilde kötüleşmemeli; bu da tam klipte bir kez çalıştırılarak kontrol edilecek.
+- README: karşılaştırma tablosu ve "Bilinen Kısıtlar 2" güncellenecek (çözüldüyse "çözüldü" yazılacak, kısmen çözüldüyse kalan durum dürüstçe anlatılacak). Demo GIF yalnızca gerekirse yeniden üretilecek.
 
 ## 5. Riskler ve önlemler
 

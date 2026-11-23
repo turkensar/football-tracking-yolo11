@@ -218,17 +218,18 @@ Hazır COCO `yolo11s.pt` modeli geniş yayın açısında küçük topu sık ka�
 | CPU — `11th Gen Intel(R) Core(TM) i7-11370H @ 3.30GHz` (4C/8T, 15.7 GB RAM) | `configs/football.yaml` (fine-tune) | 1280 | **2.45** *(300 kare)* | 122.6 | 6.0 | 128.9 |
 | GPU (CUDA) | `configs/default.yaml` / `football.yaml` | 1280 | Ölçülmedi | Ölçülmedi | Ölçülmedi | Ölçülmedi |
 
-*Not: `640` hızlı önizleme için uygundur ancak geniş yayın açısında uzak oyuncuları ve topu daha sık kaçırır. 4 sınıflı fine-tune başlığı 80 sınıflı COCO başlığından hafif olduğu için CPU hızı eşdeğer hatta biraz daha yüksektir.*
+*Not: `640` hızlı önizleme için uygundur ancak geniş yayın açısında uzak oyuncuları ve topu daha sık kaçırır.*
 
 ### COCO (`default.yaml`) vs. Fine-Tune Futbol (`football.yaml`) — Tam Klip (`543` kare / `21.72 sn`)
 
 | Metrik | COCO (`configs/default.yaml`) | Fine-Tune (`configs/football.yaml`) | Yorum |
 |---|---:|---:|---|
-| `ball.detected_ratio` | `40.9%` (`222/543`) | **`95.0%`** (`516/543`)* | `ball_conf=0.25` ile penaltı hazırlığında `276/276`, şut uçuşunda ve gol sonrası orta sahada `135/243` gerçek top (`%75.7+` gerçek top); *ancak gol sonrası boş kalan boyalı penaltı noktası FP'si de orana dahildir (bkz. Bilinen Kısıtlar).* |
-| `ball.visible_ratio` (enterpolasyon dahil) | `63.0%` (`342/543`) | **`100.0%`** (`543/543`)* | 15 karelik doğrusal enterpolasyonla kesintisiz akış. |
-| `unique_player_ids` | `48` | `64` | Uzak/çömelen oyuncular da yakalandığı için ortalama oyuncu tespiti `13.3 → 19.1 / kare` arttı; saha dışı fotoğrafçılar elendi. |
+| **Gerçek top tespiti (kare kare doğrulanmış)** | `≈ 40.9%`* | **`≥ 75.7%`** | Fine-tune modelde penaltı hazırlığı (`276/276`) + gol sonrası hareketli top (`135/243`) koordinatla ayrıştırıldı; *COCO oranı elle doğrulanmadı, küçük bir yanlış pozitif payı içerebilir.* |
+| `ball.detected_ratio` | `40.9%` (`222/543`) | `95.0%` (`516/543`) *(penaltı noktası yanlış pozitifi dahil)* | Gol sonrası boş kalan boyalı penaltı noktası `ball` olarak algılandığı için ham oran gerçek toptan yüksektir (bkz. Bilinen Kısıtlar). |
+| `ball.visible_ratio` (enterpolasyon dahil) | `63.0%` (`342/543`) | `100.0%` (`543/543`) *(penaltı noktası yanlış pozitifi dahil)* | 15 karelik doğrusal enterpolasyon sonrası oran; penaltı noktası kilidini de içerir. |
+| `unique_player_ids` | `48` | `64` | Ortalama oyuncu tespiti `13.3 → 19.1 / kare` arttı ve saha dışı fotoğrafçılar elendi; ancak ID parçalanması da arttı — ByteTrack eşikleri COCO modeline göre ayarlandı, fine-tune model için yeniden ayarlanmadı. |
 | `player_ids_by_team["-1"]` | `9` | `16` | Açık `referee` sınıfı (`referee_class_ids: [3]`) renk eşiğine gerek kalmadan anında `-1` etiketlenir. |
-| `pass1_fps` (tam 543 kare / 300 kare adil ölçüm) | `1.22` / `2.38` | **`3.18`** / **`2.45`** | 4 sınıflı model CPU'da COCO kadar veya daha hızlı. |
+| `pass1_fps` (`--max-frames 300`, CPU) | `2.38` | `2.45` | Aynı mimari (`yolo11s`, `imgsz 1280`); hız eşdeğer (fark ölçüm gürültüsü içinde). |
 
 | Fine-tune penaltı şutu havada (Kare 285) | COCO penaltı anı (Kare 200) | COCO orta saha & kısıt örneği (Kare 500) |
 |---|---|---|
