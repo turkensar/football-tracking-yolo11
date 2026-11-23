@@ -4,9 +4,9 @@
 
 Futbol maç videolarında oyuncu ve top tespiti, kalıcı ID takibi ve forma rengine göre takım sınıflandırması yapan iki geçişli Python komut satırı aracı.
 
-![Demo — Ekvador vs. Katar penaltı ve gol takibi](docs/assets/demo.gif)
+![Demo — Ekvador vs. Katar penaltı ve gol takibi (fine-tune futbol modeli)](docs/assets/demo.gif)
 
-> **Demo görüntü atfı:** *[2022 FIFA World Cup's first goal by Enner Valencia of Ecuador against Qatar](https://commons.wikimedia.org/wiki/File:2022_FIFA_World_Cup%27s_first_goal_by_Enner_Valencia_of_Ecuador_against_Qatar.webm)* — Yazar: **Mehr News Agency** ([mehrnews.com](https://www.mehrnews.com)), Lisans: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). **Değiştirildi: tespit/takip katmanları eklendi.**
+> **Demo görüntü atfı:** *[2022 FIFA World Cup's first goal by Enner Valencia of Ecuador against Qatar](https://commons.wikimedia.org/wiki/File:2022_FIFA_World_Cup%27s_first_goal_by_Enner_Valencia_of_Ecuador_against_Qatar.webm)* — Yazar: **Mehr News Agency** ([mehrnews.com](https://www.mehrnews.com)), Lisans: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). **Değiştirildi: tespit/takip katmanları eklendi (`configs/football.yaml` / `football_yolo11s.pt`).**
 
 ---
 
@@ -43,7 +43,7 @@ Girdi Video (.mp4 / .webm)
 
 Proje `src/` yerleşimini kullanır:
 
-- `src/futbolcv/config.py` — YAML yükleme ve tip/aralık doğrulaması (`configs/default.yaml`, `configs/fast.yaml`)
+- `src/futbolcv/config.py` — YAML yükleme ve tip/aralık doğrulaması (`configs/default.yaml`, `configs/fast.yaml`, `configs/football.yaml`)
 - `src/futbolcv/video_io.py` — Yeniden yinelenebilir `VideoReader` ve bağlam yöneticili `VideoWriter`
 - `src/futbolcv/detector.py` — YOLO11 sarmalayıcısı (`models/` çözümlemesi, cihaz seçimi)
 - `src/futbolcv/tracker.py` — `PlayerTracker` (`sv.ByteTrack` sarmalayıcısı)
@@ -117,7 +117,18 @@ Küçük top ve uzak oyuncular için `configs/default.yaml` `imgsz: 1280` kullan
 python -m futbolcv --input data\mac.mp4 --output outputs\run1 --config configs\default.yaml
 ```
 
-### 2. Hızlı CPU Önizleme (`configs/fast.yaml`, `imgsz: 640`)
+### 2. Fine-Tune Futbol Modeli (`configs/football.yaml`)
+
+Özel eğitilmiş 4 sınıflı futbol modeli (`ball`, `goalkeeper`, `player`, `referee`) ile çalıştırmak için ağırlığı GitHub Release sayfasından indirip `models/football_yolo11s.pt` konumuna koyun (ağırlık dosyası repoda tutulmaz):
+
+```powershell
+curl.exe -fL https://github.com/<GITHUB_USER>/<REPO_NAME>/releases/latest/download/football_yolo11s.pt -o models\football_yolo11s.pt
+python -m futbolcv --input data\mac.mp4 --output outputs\football --config configs\football.yaml
+```
+
+Bu profilde hakem tespitleri (`referee_class_ids: [3]`) oyuncularla birlikte takip edilir, KMeans eğitimine sokulmaz ve forma renginden bağımsız olarak doğrudan `-1` (gri) etiketlenir.
+
+### 3. Hızlı CPU Önizleme (`configs/fast.yaml`, `imgsz: 640`)
 
 CPU üzerinde hızlı deneme yapmak için `imgsz: 640` kullanan `configs/fast.yaml` (~2.6× daha hızlı) ve/veya `--max-frames` seçeneğini kullanın:
 
@@ -127,15 +138,15 @@ python -m futbolcv --input data\mac.mp4 --output outputs\preview --config config
 
 Cihazı geçersiz kılmak için `--device cpu` veya `--device 0` verilebilir. Daha uzun videolarda `output.stride: 2` ayarlanarak her 2. kare işlenebilir.
 
-### 3. Demo GIF Üretme
+### 4. Demo GIF Üretme
 
 İşaretlenmiş çıktı videosundan ≤10 MiB boyutunda bir GIF üretmek için:
 
 ```powershell
-python scripts\make_demo_gif.py --input outputs\run1\annotated.mp4 --output docs\assets\demo.gif --start 8.8 --duration 7.2 --width 960 --fps 10
+python scripts\make_demo_gif.py --input outputs\football\annotated.mp4 --output docs\assets\demo.gif --start 8.8 --duration 7.2 --width 960 --fps 10
 ```
 
-### 4. Testler ve Kod Kalitesi
+### 5. Testler ve Kod Kalitesi
 
 ```powershell
 # Hızlı birim testleri (GPU, internet ve model ağırlığı gerektirmez)
@@ -165,48 +176,85 @@ Her çalıştırma `--output` klasöründe üç dosya üretir:
 
 ---
 
+## Futbol Veri Setiyle Fine-Tune (Colab GPU)
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/<GITHUB_USER>/<REPO_NAME>/blob/main/notebooks/finetune_colab.ipynb)
+
+Hazır COCO `yolo11s.pt` modeli geniş yayın açısında küçük topu sık kaçırdığı için `notebooks/finetune_colab.ipynb` (ve yerel/sunucu karşılığı `scripts/train.py`) ile Google Colab ücretsiz T4 GPU üzerinde ince ayar (fine-tune) yapılmıştır.
+
+- **Veri seti:** [Roboflow Universe — Football Players Detection (`roboflow-jvuqo/football-players-detection-3zvbc`, v1)](https://universe.roboflow.com/roboflow-jvuqo/football-players-detection-3zvbc) — Lisans: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+- **Sınıflar (4):** `0: ball`, `1: goalkeeper`, `2: player`, `3: referee`
+- **Veri sızıntısı notu:** Değerlendirmede kullanılan Ekvador–Katar klibi (2022 Dünya Kupası) eğitim/doğrulama/test setinde yer almaz.
+- **Eğitim parametreleri:** Taban `yolo11s.pt`, `imgsz=1280`, `epochs=50`, `batch=8`, `patience=15`, `seed=42`, `ultralytics==8.4.216` (Google Colab Tesla T4 GPU). Yerel GPU sunucusunda aynı eğitim:
+  ```powershell
+  python scripts\train.py --data path\to\data.yaml --epochs 50 --imgsz 1280 --batch 8 --device auto
+  ```
+- **Eğitilmiş ağırlık:** Repoda ağırlık dosyası bulunmaz. İndirmek için yukarıdaki **Fine-Tune Futbol Modeli** adımındaki GitHub Release bağlantısını kullanın (`models/football_yolo11s.pt`).
+
+### Değerlendirme Metrikleri (`test` split)
+
+| Sınıf | `AP50` / `mAP50` | `AP50-95` / `mAP50-95` |
+|---|---:|---:|
+| **Genel (`overall`)** | **0.8627** | **0.6513** |
+| `player` (`2`) | 0.9906 | 0.8168 |
+| `referee` (`3`) | 0.9709 | 0.7149 |
+| `goalkeeper` (`1`) | 0.9575 | 0.8067 |
+| `ball` (`0`) | 0.5319 | 0.2667 |
+
+*`test` split genel Precision: `0.8559`, Recall: `0.8494`. (Karşılaştırma için erken durdurma ve `best.pt` seçiminde kullanılan `val` split genel değerleri: `mAP50=0.8781`, `mAP50-95=0.6721`, `ball AP50=0.5616`.)*
+
+---
+
 ## Sonuçlar ve Performans
 
-Ölçümler 1920×1080, 25 fps açık lisanslı yayın klibi üzerinde (`stride=1`) yapılmıştır.
+Ölçümler 1920×1080, 25 fps açık lisanslı Ekvador–Katar yayın klibi üzerinde (`stride=1`) yapılmıştır.
 
-### Hız Kıyaslaması (`--max-frames 300`, 2 koşu ortalaması)
+### Hız Kıyaslaması (`--max-frames 300`, CPU)
 
-| Donanım | Yapılandırma | `imgsz` | `pass1_fps` (ort.) | `pass1` (sn) | `pass2` (sn) | Toplam (sn) |
+| Donanım | Yapılandırma | `imgsz` | `pass1_fps` | `pass1` (sn) | `pass2` (sn) | Toplam (sn) |
 |---|---|---:|---:|---:|---:|---:|
-| CPU — `11th Gen Intel(R) Core(TM) i7-11370H @ 3.30GHz` (4C/8T, 15.7 GB RAM) | `configs/fast.yaml` | 640 | **6.28** *(6.35 / 6.20)* | 47.8 | 6.6 | 54.6 |
-| CPU — `11th Gen Intel(R) Core(TM) i7-11370H @ 3.30GHz` (4C/8T, 15.7 GB RAM) | `configs/default.yaml` | 1280 | **2.38** *(2.41 / 2.34)* | 126.5 | 6.3 | 133.0 |
-| GPU (CUDA) | `configs/default.yaml` | 1280 | Ölçülmedi | Ölçülmedi | Ölçülmedi | Ölçülmedi |
+| CPU — `11th Gen Intel(R) Core(TM) i7-11370H @ 3.30GHz` (4C/8T, 15.7 GB RAM) | `configs/fast.yaml` (COCO) | 640 | **6.28** *(2 koşu ort.)* | 47.8 | 6.6 | 54.6 |
+| CPU — `11th Gen Intel(R) Core(TM) i7-11370H @ 3.30GHz` (4C/8T, 15.7 GB RAM) | `configs/default.yaml` (COCO) | 1280 | **2.38** *(2 koşu ort.)* | 126.5 | 6.3 | 133.0 |
+| CPU — `11th Gen Intel(R) Core(TM) i7-11370H @ 3.30GHz` (4C/8T, 15.7 GB RAM) | `configs/football.yaml` (fine-tune) | 1280 | **2.45** *(300 kare)* | 122.6 | 6.0 | 128.9 |
+| GPU (CUDA) | `configs/default.yaml` / `football.yaml` | 1280 | Ölçülmedi | Ölçülmedi | Ölçülmedi | Ölçülmedi |
 
-*Not: `640` hızlı önizleme için uygundur ancak geniş yayın açısında uzak oyuncuları ve topu daha sık kaçırır, saha kenarı tripodunu yanlışlıkla oyuncu sanabilir.*
+*Not: `640` hızlı önizleme için uygundur ancak geniş yayın açısında uzak oyuncuları ve topu daha sık kaçırır. 4 sınıflı fine-tune başlığı 80 sınıflı COCO başlığından hafif olduğu için CPU hızı eşdeğer hatta biraz daha yüksektir.*
 
-### Tam Klip Özeti (`543` kare / `21.72 sn`, `configs/default.yaml`)
+### COCO (`default.yaml`) vs. Fine-Tune Futbol (`football.yaml`) — Tam Klip (`543` kare / `21.72 sn`)
 
-- **Benzersiz oyuncu ID:** `48` (Takım 0: `23`, Takım 1: `16`, Uç değer `-1`: `9` — ByteTrack ayarı ile varsayılan `90`'dan `%47` düşürüldü)
-- **Top görünürlüğü:** Ham tespit `%40.9` (`222/543`), enterpolasyon `+22.1%` (`120/543`), toplam görünürlük **`%63.0`** (`342/543`)
+| Metrik | COCO (`configs/default.yaml`) | Fine-Tune (`configs/football.yaml`) | Yorum |
+|---|---:|---:|---|
+| `ball.detected_ratio` | `40.9%` (`222/543`) | **`95.0%`** (`516/543`)* | `ball_conf=0.25` ile penaltı hazırlığında `276/276`, şut uçuşunda ve gol sonrası orta sahada `135/243` gerçek top (`%75.7+` gerçek top); *ancak gol sonrası boş kalan boyalı penaltı noktası FP'si de orana dahildir (bkz. Bilinen Kısıtlar).* |
+| `ball.visible_ratio` (enterpolasyon dahil) | `63.0%` (`342/543`) | **`100.0%`** (`543/543`)* | 15 karelik doğrusal enterpolasyonla kesintisiz akış. |
+| `unique_player_ids` | `48` | `64` | Uzak/çömelen oyuncular da yakalandığı için ortalama oyuncu tespiti `13.3 → 19.1 / kare` arttı; saha dışı fotoğrafçılar elendi. |
+| `player_ids_by_team["-1"]` | `9` | `16` | Açık `referee` sınıfı (`referee_class_ids: [3]`) renk eşiğine gerek kalmadan anında `-1` etiketlenir. |
+| `pass1_fps` (tam 543 kare / 300 kare adil ölçüm) | `1.22` / `2.38` | **`3.18`** / **`2.45`** | 4 sınıflı model CPU'da COCO kadar veya daha hızlı. |
 
-| Penaltı anı (Kare 200) | Orta saha akışı (Kare 500) |
-|---|---|
-| ![Kare 200 — penaltı](docs/assets/t11_frame_200.jpg) | ![Kare 500 — orta saha](docs/assets/t11_frame_500.jpg) |
-| Penaltı noktasında top işaretli; Ekvador (sarı) ve Katar (bordo) ayrışıyor; siyah hakem `12` gri (`-1`). | Top `29` önünde işaretli; turkuaz kaleci `37` gri (`-1`); saha dışı görevliler (`44`, `45`) ve ID değişimi sonrası hakem (`21`) gecikmesi görülüyor. |
+| Fine-tune penaltı şutu havada (Kare 285) | COCO penaltı anı (Kare 200) | COCO orta saha & kısıt örneği (Kare 500) |
+|---|---|---|
+| ![Kare 285 — fine-tune şut anı](docs/assets/t13c_frame_285.jpg) | ![Kare 200 — penaltı](docs/assets/t11_frame_200.jpg) | ![Kare 500 — orta saha](docs/assets/t11_frame_500.jpg) |
+| Fine-tune model hareket bulanıklığındaki topu şut anında havada yakalıyor; orta (`16`) ve yan (`13`) hakem `-1` (gri), saha dışı fotoğrafçı yok. | COCO `default.yaml`: penaltı noktasında top işaretli; siyah hakem `12` gri (`-1`), ancak çömelen oyuncu kaçırılmış. | COCO `default.yaml`: saha dışı görevliler (`44`, `45`) tespit edilmiş ve ID değişimi sonrası hakem (`21`) oy penceresi gecikmesi yaşıyor. |
 
 ---
 
 ## Bilinen Kısıtlar
 
-1. **Örtüşmede ID değişimi ve takım etiketi gecikmesi:** ByteTrack yalnızca hareket (Kalman) ve IoU kullandığından ceza sahası kalabalığında ID değişimleri oluşur (22 oyuncu yerine 543 karede 48 benzersiz ID). Bir oyuncu veya hakem başka birinin ID'sini devraldığında kayan çoğunluk oyu penceresi (`vote_window: 15`) eski takımı birkaç kare taşır — **ID değişiminde takım etiketi birkaç kare gecikmeli düzelir** (ör. Kare 500'de siyah formalı hakem `21` geçici olarak bordo rozet taşıyor).
-2. **Hazır COCO modeliyle top tespiti:** `yolo11s.pt` futbol özelinde eğitilmediğinden hızlı şut ve hareket bulanıklığında topu kaçırabilir (`%40.9` ham tespit, enterpolasyonla `%63.0`); düşük `ball_conf` (0.12) nedeniyle nadiren çömelen oyuncu veya reklam panolarında geçici yanlış pozitifler görülebilir.
-3. **Saha dışı `person` tespitleri:** Saha sınır maskesi olmadığı için reklam panosu arkasındaki fotoğrafçı/görevliler (Kare 500'de `44`, `45`) ve bazı açılarda saha tripodu `person` olarak yakalanabilir.
-4. **Sahne kesmesi algılama:** Test klibi tek kesintisiz kamera çekimi olduğu için `scene_cut_threshold: 0.4` yalnızca normal kamera panında yanlış pozitif üretmediği (`max=0.069`) yönünde test edildi; **kesme algılama sentetik testle doğrulandı, gerçek kesme içeren klipte doğrulanmadı.**
-5. **CPU hızı:** `imgsz: 1280` CPU'da ~2.38 fps'tir (uzun videolarda ısınma/arka plan yüküyle daha da düşebilir). CPU'da hızlı önizleme için `configs/fast.yaml`, `--max-frames` veya `output.stride: 2` kullanın.
+1. **Örtüşmede ID değişimi ve takım etiketi gecikmesi:** ByteTrack yalnızca hareket (Kalman) ve IoU kullandığından ceza sahası kalabalığında ID değişimleri oluşur (22 oyuncu yerine 543 karede COCO'da 48, fine-tune modelde 64 benzersiz ID). Bir oyuncu veya (COCO modunda) hakem başka birinin ID'sini devraldığında kayan çoğunluk oyu penceresi (`vote_window: 15`) eski takımı birkaç kare taşır — **ID değişiminde takım etiketi birkaç kare gecikmeli düzelir** (ör. COCO Kare 500'de siyah formalı hakem `21` geçici olarak bordo rozet taşıyor; `football.yaml` modelinde hakem `referee` sınıfıyla tespit edildiği karelerde anında `-1` olur, ancak hakem nadiren `player` sınıfıyla algılandığında aynı gecikme görülebilir).
+2. **Boyalı penaltı noktası yanlış pozitifi ve top kilidi (fine-tune):** Gol sonrasında penaltı noktası boş kaldığında fine-tune model beyaz penaltı noktasını `ball` (`conf ≈ 0.50–0.76`) olarak tespit edebiliyor. `BallTracker.select()` önceki konuma en yakın adayı seçtiği için orta sahada yuvarlanan gerçek top daha yüksek güvenle (`conf ≈ 0.70–0.77`) tespit edilse bile takipçi penaltı noktası kaybolana dek (~100 kare) orada kilitli kalabiliyor. Bu nedenle `football.yaml` tablosundaki `%95.0` ham top oranının tamamı gerçek top değildir (gerçek top ham oranı `%75.7+` civarındadır).
+3. **Hazır COCO modeliyle top tespiti:** `yolo11s.pt` futbol özelinde eğitilmediğinden hızlı şut ve hareket bulanıklığında topu kaçırır (`%40.9` ham tespit, enterpolasyonla `%63.0`).
+4. **Saha dışı tespitler ve tripod:** Fine-tune model kenardaki fotoğrafçıları büyük ölçüde elese de her iki modelde saha üstündeki kamera tripodu bazı açılarda `person`/`player` olarak yakalanabiliyor.
+5. **Sahne kesmesi algılama:** Test klibi tek kesintisiz kamera çekimi olduğu için `scene_cut_threshold: 0.4` yalnızca normal kamera panında yanlış pozitif üretmediği (`max=0.069`) yönünde test edildi; **kesme algılama sentetik testle doğrulandı, gerçek kesme içeren klipte doğrulanmadı.**
+6. **CPU hızı:** `imgsz: 1280` CPU'da ~2.4 fps'tir (uzun videolarda ısınma/arka plan yüküyle değişebilir). CPU'da hızlı önizleme için `configs/fast.yaml`, `--max-frames` veya `output.stride: 2` kullanın.
 
 ---
 
 ## Sonraki Adımlar (Future Work)
 
+- `BallTracker.select()` içine mesafe + güven + durağan konum (boyalı penaltı noktası gibi statik FP) reddi ekleme
 - `supervision 0.30.x`'te deprecated olan `sv.ByteTrack` yerine Roboflow `trackers` paketine geçiş
-- Açık lisanslı futbol veri setiyle (`player`, `goalkeeper`, `referee`, `ball`) YOLO11 fine-tune
+- Daha geniş/çeşitli futbol veri setiyle (`ball` AP50'yi artırmak için) fine-tune ve negatif (boş saha/penaltı noktası) örnekleri ekleme
 - Saha anahtar noktalarıyla homografi ve 2D kuşbakışı taktik radar
-- Saha maskesiyle seyirci/görevli filtreleme ve Re-ID öznitelikleriyle ID değişimi azaltma
+- Saha maskesiyle tripod/kenar görevli filtreleme ve Re-ID öznitelikleriyle ID değişimi azaltma
 - Oyuncu hızı, kat edilen mesafe, top sahipliği yüzdesi ve Streamlit etkileşimli arayüzü
 
 ---
@@ -214,6 +262,9 @@ Her çalıştırma `--output` klasöründe üç dosya üretir:
 ## Lisans ve Atıflar
 
 - **Kod lisansı:** [GNU AGPL-3.0](LICENSE) — Ultralytics YOLO AGPL-3.0 lisanslı olduğu için proje kodu da GNU AGPL-3.0 altında lisanslanmıştır.
+- **Eğitim veri seti atfı (fine-tune):**
+  - Veri seti: *[Football Players Detection (`roboflow-jvuqo/football-players-detection-3zvbc`, v1)](https://universe.roboflow.com/roboflow-jvuqo/football-players-detection-3zvbc)* (Roboflow Universe)
+  - Lisans: [Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/)
 - **Demo görselleri ve GIF kaynağı:**
   - Başlık: *[2022 FIFA World Cup's first goal by Enner Valencia of Ecuador against Qatar](https://commons.wikimedia.org/wiki/File:2022_FIFA_World_Cup%27s_first_goal_by_Enner_Valencia_of_Ecuador_against_Qatar.webm)*
   - Yazar: **Mehr News Agency** ([mehrnews.com](https://www.mehrnews.com))

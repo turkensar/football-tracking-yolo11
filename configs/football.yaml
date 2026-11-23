@@ -6,6 +6,7 @@
 
 detector:
   weights: "football_yolo11s.pt"
+  ball_conf: 0.25
   player_class_ids: [1, 2]
   referee_class_ids: [3]
   ball_class_ids: [0]

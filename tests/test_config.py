@@ -37,12 +37,14 @@ def test_load_football_config() -> None:
     football_cfg = load_config(FOOTBALL_CONFIG_PATH)
 
     assert football_cfg.detector.weights == "football_yolo11s.pt"
+    assert football_cfg.detector.ball_conf == pytest.approx(0.25)
     assert football_cfg.detector.ball_class_ids == [0]
     assert football_cfg.detector.player_class_ids == [1, 2]
     assert football_cfg.detector.referee_class_ids == [3]
     assert default_cfg.detector.referee_class_ids == []
 
     football_cfg.detector.weights = default_cfg.detector.weights
+    football_cfg.detector.ball_conf = default_cfg.detector.ball_conf
     football_cfg.detector.ball_class_ids = default_cfg.detector.ball_class_ids
     football_cfg.detector.player_class_ids = default_cfg.detector.player_class_ids
     football_cfg.detector.referee_class_ids = default_cfg.detector.referee_class_ids
