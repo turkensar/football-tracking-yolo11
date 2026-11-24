@@ -1,4 +1,4 @@
-# futbol-cv
+# football-tracking-yolo11
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 
@@ -60,8 +60,8 @@ Proje `src/` yerleşimini kullanır:
 Gereksinimler: **Python 3.11** (`.python-version`) ve [uv](https://docs.astral.sh/uv/).
 
 ```powershell
-git clone <repo-url>
-cd futbol-cv
+git clone https://github.com/turkensar/football-tracking-yolo11.git
+cd football-tracking-yolo11
 
 uv venv --python 3.11 .venv
 .\.venv\Scripts\Activate.ps1
@@ -79,7 +79,7 @@ TLS/sertifika hatası alırsanız sistem sertifikalarıyla kurun:
 uv pip install --system-certs -r requirements-dev.txt -e .
 ```
 
-> **Önemli — Çalışma Dizini (CWD):** Tüm komutları **repo kök dizininden** (`futbol-cv/`) çalıştırın. `configs/default.yaml` içindeki yalın ağırlık adı (`yolo11s.pt`) çalışma dizinine göre `models/yolo11s.pt` olarak çözülür.
+> **Önemli — Çalışma Dizini (CWD):** Tüm komutları **repo kök dizininden** (`football-tracking-yolo11/`) çalıştırın. `configs/default.yaml` içindeki yalın ağırlık adı (`yolo11s.pt`) çalışma dizinine göre `models/yolo11s.pt` olarak çözülür.
 
 ### Opsiyonel: NVIDIA GPU (CUDA) Kurulumu
 
@@ -122,7 +122,7 @@ python -m futbolcv --input data\mac.mp4 --output outputs\run1 --config configs\d
 Özel eğitilmiş 4 sınıflı futbol modeli (`ball`, `goalkeeper`, `player`, `referee`) ile çalıştırmak için ağırlığı GitHub Release sayfasından indirip `models/football_yolo11s.pt` konumuna koyun (ağırlık dosyası repoda tutulmaz):
 
 ```powershell
-curl.exe -fL https://github.com/<GITHUB_USER>/<REPO_NAME>/releases/latest/download/football_yolo11s.pt -o models\football_yolo11s.pt
+curl.exe -fL https://github.com/turkensar/football-tracking-yolo11/releases/latest/download/football_yolo11s.pt -o models\football_yolo11s.pt
 python -m futbolcv --input data\mac.mp4 --output outputs\football --config configs\football.yaml
 ```
 
@@ -178,7 +178,7 @@ Her çalıştırma `--output` klasöründe üç dosya üretir:
 
 ## Futbol Veri Setiyle Fine-Tune (Colab GPU)
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/<GITHUB_USER>/<REPO_NAME>/blob/main/notebooks/finetune_colab.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/turkensar/football-tracking-yolo11/blob/main/notebooks/finetune_colab.ipynb)
 
 Hazır COCO `yolo11s.pt` modeli geniş yayın açısında küçük topu sık kaçırdığı için `notebooks/finetune_colab.ipynb` (ve yerel/sunucu karşılığı `scripts/train.py`) ile Google Colab ücretsiz T4 GPU üzerinde ince ayar (fine-tune) yapılmıştır.
 
@@ -241,7 +241,7 @@ Hazır COCO `yolo11s.pt` modeli geniş yayın açısında küçük topu sık ka�
 ## Bilinen Kısıtlar
 
 1. **Örtüşmede ID değişimi ve takım etiketi gecikmesi:** ByteTrack yalnızca hareket (Kalman) ve IoU kullandığından ceza sahası kalabalığında ID değişimleri oluşur (22 oyuncu yerine 543 karede COCO'da 48, fine-tune modelde 64 benzersiz ID). Bir oyuncu veya (COCO modunda) hakem başka birinin ID'sini devraldığında kayan çoğunluk oyu penceresi (`vote_window: 15`) eski takımı birkaç kare taşır — **ID değişiminde takım etiketi birkaç kare gecikmeli düzelir** (ör. COCO Kare 500'de siyah formalı hakem `21` geçici olarak bordo rozet taşıyor; `football.yaml` modelinde hakem `referee` sınıfıyla tespit edildiği karelerde anında `-1` olur, ancak hakem nadiren `player` sınıfıyla algılandığında aynı gecikme görülebilir).
-2. **Boyalı penaltı noktası yanlış pozitifi (fine-tune — büyük ölçüde çözüldü):** `BallTracker` içine eklenen sabit nokta hafızası, yeniden kilitlenme (`reacquire_conf`) ve terk edilmiş sabit nokta kuralıyla gol sonrası penaltı noktası kilidi **`201 → 5` kareye (`-97.5%`)** indirildi (`f=430–542` arası `0` kilit, `113/113` orta saha gerçek top). **Yan etki:** Terk edilmiş aynı noktaya yeniden konan bir top (ör. penaltı tekrarı) unutma süresi (`static_frames`) dolana kadar takip edilmez. Kökten çözüm için eğitim setine boş penaltı noktası negatif örnekleri eklenmelidir.
+2. **Boyalı penaltı noktası yanlış pozitifi (fine-tune — büyük ölçüde çözüldü):** `BallTracker` içine eklenen sabit nokta hafızası, yeniden kilitlenme (`reacquire_conf`) ve terk edilmiş sabit nokta kuralıyla gol sonrası penaltı noktası kilidi **`201 → 5` kareye (`-97.5%`)** indirildi (`f=430–542` arası `0` kilit, `113/113` orta saha gerçek top). **Yan etki:** Terk edilmiş aynı noktaya yeniden konan bir top (ör. penaltı tekrarı) unutma süresi (`static_frames`) dolana kadar takip edilmez; ayrıca terk edilmiş noktanın hemen yanından çok yavaş geçen top kısa süre kaçırılabilir. Kökten çözüm için eğitim setine boş penaltı noktası negatif örnekleri eklenmelidir.
 3. **Hazır COCO modeliyle top tespiti:** `yolo11s.pt` futbol özelinde eğitilmediğinden hızlı şut ve hareket bulanıklığında topu kaçırır (`%40.9` ham tespit, enterpolasyonla `%63.0`).
 4. **Saha dışı tespitler ve tripod:** Fine-tune model kenardaki fotoğrafçıları büyük ölçüde elese de her iki modelde saha üstündeki kamera tripodu bazı açılarda `person`/`player` olarak yakalanabiliyor.
 5. **Sahne kesmesi algılama:** Test klibi tek kesintisiz kamera çekimi olduğu için `scene_cut_threshold: 0.4` yalnızca normal kamera panında yanlış pozitif üretmediği (`max=0.069`) yönünde test edildi; **kesme algılama sentetik testle doğrulandı, gerçek kesme içeren klipte doğrulanmadı.**
